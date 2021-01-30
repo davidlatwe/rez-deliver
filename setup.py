@@ -28,8 +28,17 @@ from deliver._version import version
 
 setup_args = dict(
     name="deliver",
-    package_data={"deliver": ["../rez/cli/*.json", "../rez/cli/*.py"]},
-    entry_points={"console_scripts": get_specifications().values()},
+    package_data={
+        "deliver": [
+            "../rez/cli/*.json",
+            "../rez/cli/*.py",
+            "../rezplugins/release_vcs/rezconfig-*",
+            "../rezplugins/release_vcs/*.py",
+        ],
+    },
+    entry_points={
+        "console_scripts": get_specifications().values(),
+    },
     packages=find_packages("src"),
     package_dir={"": "src"},
     include_package_data=True,
