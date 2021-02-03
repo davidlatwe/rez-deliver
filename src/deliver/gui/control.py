@@ -121,6 +121,7 @@ class Controller(QtCore.QObject):
                     "timestamp": package.timestamp,
                     "locations": [path],
                     "variants": package.num_variants,
+                    "github_repo": package.data.get("github_repo")
                 }
                 seen[qualified_name] = doc
 
