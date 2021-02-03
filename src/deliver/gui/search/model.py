@@ -56,7 +56,13 @@ class PackageModel(AbstractTreeModel):
                 "tools": ", ".join(sorted(tools)),
                 "date": item["timestamp"]
             })
-            item = PackageItem(item)
+            package = PackageItem(item)
+
+            for index in range(item["variants"]):
+                variant = PackageItem(item)
+                variant["name"] += "[%d]" % index
+                variant["index"] = index
+                package.add_child(variant)
 
             if family_name not in families:
                 cover_previous_family()
@@ -76,8 +82,8 @@ class PackageModel(AbstractTreeModel):
                 self.add_child(family)
 
             family["tools"].update(tools)
-            family["timestamp"].add(item["timestamp"])
-            family.add_child(item)
+            family["timestamp"].add(package["timestamp"])
+            family.add_child(package)
 
         cover_previous_family()
 

@@ -120,6 +120,7 @@ class Controller(QtCore.QObject):
                     "qualified_name": qualified_name,
                     "timestamp": package.timestamp,
                     "locations": [path],
+                    "variants": package.num_variants,
                 }
                 seen[qualified_name] = doc
 
