@@ -54,7 +54,7 @@ class DevPkgRepository(object):
         }
 
     def __contains__(self, pkg):
-        return "@".join(pkg.parent.repository.uid) == self._memory
+        return "@".join(pkg.parent.repository.uid[:2]) == self._memory
 
     def _update_ext_packages(self):
         ext_pkg_list = os.path.join(self._root, self._externals)
@@ -191,7 +191,7 @@ class PackageInstaller(object):
         else:
             name = pkg_to_deploy.qualified_name
             variants = pkg_to_deploy.iter_variants()
-            # TODO: check all variants are installed (check with variant uri ?)
+            # TODO: check all variants are installed
 
             if installed(pkg_to_deploy):
                 uri = pkg_to_deploy.uri
