@@ -1,5 +1,4 @@
 
-import os
 import sys
 import argparse
 from . import cli
@@ -20,18 +19,12 @@ parser.add_argument("--list", action="store_true",
 
 opt = parser.parse_args()
 
-os.environ["REZ_CONFIG_FILE"] = os.pathsep.join(
-    [os.path.join(_root, "rezconfig.py")] +
-    os.getenv("REZ_CONFIG_FILE", "").split(os.pathsep)
-)
-
 if opt.list:
-    cli.print_developer_packages(opt.packages)
+    cli.list_developer_packages(opt.packages)
     sys.exit(0)
 
 if opt.packages:
-    set_release(opt.release)
-    if cli.deploy_packages(opt.packages, opt.yes):
+    if cli.deploy_packages(opt.packages, opt.release, opt.yes):
         print("=" * 30)
         print("SUCCESS!\n")
 

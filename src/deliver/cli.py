@@ -1,20 +1,23 @@
 
+from rez.packages import iter_package_families
+from rez.packages import get_latest_package_from_string
+from . import pkgs
 
-def print_developer_packages(requests):
-    from rez.utils.logging_ import logger
-    from rez.packages import (
-        iter_package_families,
-        get_latest_package_from_string,
-    )
 
-    logger.setLevel(logging.WARNING)
+ROOT = "C:/Users/davidlatwe.lai/pipeline/rez-kit"
+REZ_SRC = "C:/Users/davidlatwe.lai/pipeline/rez"
+
+
+def list_developer_packages(requests):
+
+    dev_repo = pkgs.DevPkgRepository(ROOT)
+    dev_repo.reload()
 
     requests = requests or []
-    _before_deploy()
 
     names = list()
     for request in requests:
-        pkg = get_latest_package_from_string(request, paths=[_memory])
+        pkg = get_latest_package_from_string(request, paths=[dev_repo.uri()])
         if pkg is None:
             print("Package not found in this repository: %s" % request)
             continue
@@ -23,7 +26,7 @@ def print_developer_packages(requests):
     print("\nPackages available in this repository:")
     print("=" * 30)
 
-    for family in iter_package_families(paths=[_memory]):
+    for family in iter_package_families(paths=[dev_repo.uri()]):
         if not requests:
             print(family.name)
         else:
@@ -34,24 +37,18 @@ def print_developer_packages(requests):
                 print(package.qualified_name)
 
 
-def deploy_packages(requests, yes=False):
-    from rez.utils.logging_ import logger
+def deploy_packages(requests, release, yes=False):
+    dev_repo = pkgs.DevPkgRepository(ROOT)
+    installer = pkgs.PackageInstaller(dev_repo, REZ_SRC, release=release)
 
-    logger.setLevel(logging.WARNING)
+    dev_repo.reload()
 
-    # TODO: should be in memory
-    bind("os")
-    bind("arch")
-    bind("platform")
+    installer.run(requests)
 
-    _before_deploy()
-
-    package_paths = _state["packages_path"] + [_memory]
-
-    for request in requests:
-        print("Processing deploy request: %s .." % request)
-        deployed = deploy_package(request, package_paths, yes)
-        if not deployed:
-            break
-    else:
-        return True
+    # for request in requests:
+    #     print("Processing deploy request: %s .." % request)
+    #     deployed = deploy_package(request, package_paths, yes)
+    #     if not deployed:
+    #         break
+    # else:
+    #     return True
