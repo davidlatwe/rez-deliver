@@ -185,13 +185,17 @@ class PackageInstaller(object):
             return pkg not in self.dev_repo
 
         pkg_to_deploy = self._get_pkg_from_str(name)
+
+        # TODO: check all variants are installed
+        #   By comparing variants of dev package and installed one
+        # dev_pkg = self._get_pkg_from_str_in_dev(name)
+
         if pkg_to_deploy is None:
             uri = None
             variants = []  # dev package might not exists
         else:
             name = pkg_to_deploy.qualified_name
             variants = pkg_to_deploy.iter_variants()
-            # TODO: check all variants are installed
 
             if installed(pkg_to_deploy):
                 uri = pkg_to_deploy.uri
@@ -269,7 +273,7 @@ class PackageInstaller(object):
 
         clear_repo_cache(self._install_path())
 
-    def _build(self, name, cwd=None):
+    def _build(self, name, variant=None, cwd=None):
         pkg = self._get_pkg_from_str(name, include_dev=False)
         if pkg is not None:
             # installed
