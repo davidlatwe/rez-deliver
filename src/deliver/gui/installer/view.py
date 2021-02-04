@@ -25,3 +25,7 @@ class InstallerView(QtWidgets.QWidget):
 
     def set_model(self, model):
         self._page["detail"].setModel(model)
+
+    def on_tag_fetched(self, repo, tags):
+        # verify fetched repo matches current selected package's repo
+        print(repo, tags)

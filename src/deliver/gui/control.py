@@ -4,6 +4,7 @@ from rez.packages import iter_package_families, get_latest_package_from_string
 from .search.model import PackageModel
 from .common.model import JsonModel
 from ..pkgs import DevPkgRepository
+from .. import git
 
 
 ROOT = "C:/Users/davidlatwe.lai/pipeline/rez-kit"
@@ -16,6 +17,7 @@ class State(dict):
     def __init__(self, storage):
         super(State, self).__init__({
             "devRepoRoot": DevPkgRepository(ROOT),
+            "currentGithubRepo": None,
         })
 
         self._storage = storage
@@ -61,6 +63,7 @@ class State(dict):
 
 
 class Controller(QtCore.QObject):
+    tag_fetched = QtCore.Signal(str, list)
 
     def __init__(self, storage=None, parent=None):
         super(Controller, self).__init__(parent=parent)
@@ -107,7 +110,10 @@ class Controller(QtCore.QObject):
         self._models["package"].reset(self.iter_dev_packages())
 
     def on_release_tag_fetched(self):
-        pass
+        github_repo = self._state["currentGithubRepo"]
+        if github_repo:
+            tags = list(git.get_released_tags(github_repo))
+            self.tag_fetched.emit(github_repo, tags)
 
     def on_package_selected(self, name, index):
         package = self.find_dev_package(name)
@@ -121,9 +127,11 @@ class Controller(QtCore.QObject):
         self._models["detail"].load(data)
 
         github_repo = data.get("github_repo")
-        if github_repo:
-            # how to pass args into timer ? (only when repo/package changed)
-            print(github_repo)
+        current_repo = self._state["currentGithubRepo"]
+        outdated = github_repo != current_repo
+        if outdated:
+            self._state["currentGithubRepo"] = github_repo
+            self.defer_fetch_release_tag()
 
     def iter_dev_packages(self):
         paths = [self._state["devRepoRoot"].uri()]
