@@ -55,7 +55,7 @@ def get_tags(repo_name):
         print(tag.name)
 
 
-def get_releases(repo_name, latest=False):
+def get_releases(repo_name):
     repo = g.get_repo(repo_name)
     for release in repo.get_releases():
         github_commit = repo.get_commit(release.tag_name)
@@ -66,8 +66,11 @@ def get_releases(repo_name, latest=False):
                git_commit.sha[:8],
                git_commit.message)
 
-        if latest:
-            break
+
+def get_released_tags(repo_name):
+    repo = g.get_repo(repo_name)
+    for release in repo.get_releases():
+        yield release.tag_name
 
 
 def get_branches(repo_name):

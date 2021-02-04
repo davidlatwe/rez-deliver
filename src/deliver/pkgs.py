@@ -12,6 +12,7 @@ from rez.system import system
 from rez.package_maker import PackageMaker
 from rez.vendor.version.version import Version
 from rez.packages import iter_package_families
+from rez.exceptions import PackageNotFoundError
 from rez.utils.formatting import PackageRequest
 from rez.resolved_context import ResolvedContext
 from rez.developer_package import DeveloperPackage
@@ -78,10 +79,23 @@ class DevPkgRepository(object):
     def iter_bind_packages(self):
         for name, maker in self.binds.items():
             data = maker().data.copy()
-            data["_uri"] = "_bind_"
+            data["_dev_src_"] = "_bind_"
             yield name, {data["version"]: data}
 
     def iter_dev_packages(self):
+
+        def iter_packages_with_version_expand(fam):
+            for p in fam.iter_packages():
+                github_repo = p.data.get("github_repo")
+                if github_repo:
+                    for ver_tag in git.get_released_tags(github_repo):
+                        os.environ["GITHUB_REZ_PKG_PAYLOAD_VER"] = ver_tag
+                        yield p
+                else:
+                    yield p
+
+        #
+        # update external packages, by git-clone or checkout latest
         self._update_ext_packages()
 
         bind_path = self._memory + "+b"
@@ -101,16 +115,9 @@ class DevPkgRepository(object):
                 name = family.name  # package dir name
                 versions = dict()
 
-                for _pkg in family.iter_packages():
+                for _pkg in iter_packages_with_version_expand(family):
                     data = _pkg.data.copy()
                     name = data["name"]  # real name in package.py
-
-                    if data.get("github_repo"):
-                        repo = data["github_repo"]
-                        # get latest release, and mark unavailable if None.
-                        result = next(git.get_releases(repo, latest=True))
-                        if result:
-                            os.environ["GITHUB_REZ_PKG_PAYLOAD_VER"] = result[0]
 
                     package = make_package(name, data=data)
                     data = package.data.copy()
@@ -120,7 +127,7 @@ class DevPkgRepository(object):
                     if result:
                         package, data = result
 
-                    data["_uri"] = _pkg.uri
+                    data["_dev_src_"] = _pkg.uri
                     version = data.get("version", "unversioned")
                     versions[version] = data
 
@@ -145,6 +152,13 @@ class DevPkgRepository(object):
             in chain(self.iter_bind_packages(), self.iter_dev_packages())
         }
 
+    def update(self, name, version, data):
+        mem_repo = package_repository_manager.get_repository(self._memory)
+        if name in mem_repo.data:
+            mem_repo.data[name][version] = data
+        else:
+            mem_repo.data[name] = {version: data}
+
 
 class PackageInstaller(object):
 
@@ -152,18 +166,19 @@ class PackageInstaller(object):
         self.release = release
         self.dev_repo = dev_repo
         self.rezsrc_path = rezsrc_path
-        self._install_list = OrderedDict()
+        self._requirements = OrderedDict()
 
-    def run(self, requests, dryrun=False):
-        self._install_list.clear()
+    def reset(self):
+        self._requirements.clear()
 
-        for request in requests:
-            self._install_list.update(self.dependencies(request))
+    def manifest(self):
+        return self._requirements.copy()
 
-        if dryrun:
-            return
+    def run(self):
+        for (q_name, v_index), (exists, src) in self._requirements.items():
+            if exists:
+                continue
 
-        for q_name, _uri in self._install_list.items():
             name = q_name.split("-", 1)[0]
 
             if name == "rez":
@@ -174,49 +189,44 @@ class PackageInstaller(object):
                 self._bind(name)
                 continue
 
-            self._build(q_name, cwd=os.path.dirname(_uri))
+            self._build(os.path.dirname(src), variant=v_index)
 
-    def dependencies(self, name):
+    def resolve(self, request, variant_index=None):
         """"""
-        is_installed = False
-        to_install = OrderedDict()
+        develop = self._get_develop_pkg_from_str(request)
+        package = self._get_installed_pkg_from_str(request)
 
-        def installed(pkg):
-            return pkg not in self.dev_repo
-
-        pkg_to_deploy = self._get_pkg_from_str(name)
-
-        # TODO: check all variants are installed
-        #   By comparing variants of dev package and installed one
-        # dev_pkg = self._get_pkg_from_str_in_dev(name)
-
-        if pkg_to_deploy is None:
-            uri = None
-            variants = []  # dev package might not exists
+        if develop is None and package is None:
+            raise PackageNotFoundError("%s not found in develop repository "
+                                       "nor in installed package paths."
+                                       % request)
+        if develop is None:
+            name = package.qualified_name
+            variants = package.iter_variants()
+            source = package.uri
         else:
-            name = pkg_to_deploy.qualified_name
-            variants = pkg_to_deploy.iter_variants()
+            name = develop.qualified_name
+            variants = develop.iter_variants()
+            source = develop.data["_dev_src_"]
 
-            if installed(pkg_to_deploy):
-                uri = pkg_to_deploy.uri
-                is_installed = True
-            else:
-                uri = pkg_to_deploy.data["_uri"]
+        if package is None:
+            pkg_variants_req = []
+        else:
+            pkg_variants_req = [v.variant_requires
+                                for v in package.iter_variants()]
 
         for variant in variants:
+            if variant_index is not None and variant_index != variant.index:
+                continue
+
+            exists = variant.variant_requires in pkg_variants_req
+
             context = self._get_build_context(variant)
-            for package in context.resolved_packages:
-                dep_name = package.qualified_package_name
+            for pkg in context.resolved_packages:
+                self.resolve(request=pkg.qualified_package_name,
+                             variant_index=pkg.index)
 
-                if installed(package):
-                    pass
-                else:
-                    to_install.update(self.dependencies(dep_name))
-
-        if not is_installed:
-            to_install[name] = uri
-
-        return to_install
+            self._requirements[(name, variant.index)] = (exists, source)
 
     def _install_rez_as_package(self):
         """Use Rez's install script to deploy rez as package
@@ -225,7 +235,7 @@ class PackageInstaller(object):
         install_path = self._install_path()
 
         rez_install = os.path.join(os.path.abspath(rezsrc), "install.py")
-        dev_pkg = self._get_pkg_from_str_in_dev("rez")
+        dev_pkg = self._get_develop_pkg_from_str("rez")
 
         print("Installing Rez as package..")
 
@@ -241,13 +251,11 @@ class PackageInstaller(object):
                 cwd=rezsrc,
             )
 
-    def _get_pkg_from_str(self, name, include_dev=True):
+    def _get_installed_pkg_from_str(self, name):
         paths = self._package_paths()
-        if include_dev:
-            paths += [self.dev_repo.uri()]
         return get_latest_package_from_string(name, paths=paths)
 
-    def _get_pkg_from_str_in_dev(self, name):
+    def _get_develop_pkg_from_str(self, name):
         paths = [self.dev_repo.uri()]
         return get_latest_package_from_string(name, paths=paths)
 
@@ -261,7 +269,7 @@ class PackageInstaller(object):
                                package_paths=paths)
 
     def _bind(self, name):
-        pkg = self._get_pkg_from_str(name, include_dev=False)
+        pkg = self._get_installed_pkg_from_str(name)
         if pkg is not None:
             # installed
             return
@@ -273,16 +281,15 @@ class PackageInstaller(object):
 
         clear_repo_cache(self._install_path())
 
-    def _build(self, name, variant=None, cwd=None):
-        pkg = self._get_pkg_from_str(name, include_dev=False)
-        if pkg is not None:
-            # installed
-            return
+    def _build(self, path, variant=None):
+        variant_cmd = [] if variant is None else ["--variants", str(variant)]
 
         if self.release:
-            subprocess.check_call(["rez-release"], cwd=cwd)
+            args = ["rez-release"] + variant_cmd
+            subprocess.check_call(args, cwd=path)
         else:
-            subprocess.check_call(["rez-build", "--install"], cwd=cwd)
+            args = ["rez-build", "--install"] + variant_cmd
+            subprocess.check_call(args, cwd=path)
 
         clear_repo_cache(self._install_path())
 
