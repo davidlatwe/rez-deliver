@@ -12,8 +12,9 @@ class PackageItem(TreeItem):
 
 
 class PackageModel(AbstractTreeModel):
-    FilterRole = QtCore.Qt.UserRole + 10
-    CompletionRole = QtCore.Qt.UserRole + 11
+    ItemRole = QtCore.Qt.UserRole + 10
+    FilterRole = QtCore.Qt.UserRole + 11
+    CompletionRole = QtCore.Qt.UserRole + 12
     CompletionColumn = 0
     Headers = [
         "name",
@@ -53,12 +54,13 @@ class PackageModel(AbstractTreeModel):
                 "_type": "version",
                 "_group": initial,
                 "name": item["qualified_name"],
+                "family": family_name,
                 "tools": ", ".join(sorted(tools)),
                 "date": item["timestamp"]
             })
             package = PackageItem(item)
 
-            for index in range(item["variants"]):
+            for index in range(item["numVariants"]):
                 variant = PackageItem(item)
                 variant["name"] += "[%d]" % index
                 variant["index"] = index
@@ -120,6 +122,10 @@ class PackageModel(AbstractTreeModel):
         if role == self.FilterRole:
             item = index.internalPointer()
             return ", ".join([item["family"], item["tools"]])
+
+        if role == self.ItemRole:
+            item = index.internalPointer()
+            return item
 
     def setData(self, index, value, role=QtCore.Qt.EditRole):
         if role == QtCore.Qt.CheckStateRole:

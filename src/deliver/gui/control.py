@@ -1,7 +1,8 @@
 
 from Qt5 import QtCore
-from rez.packages import iter_package_families
+from rez.packages import iter_package_families, get_latest_package_from_string
 from .search.model import PackageModel
+from .common.model import JsonModel
 from ..pkgs import DevPkgRepository
 
 
@@ -68,13 +69,16 @@ class Controller(QtCore.QObject):
 
         timers = {
             "packageSearch": QtCore.QTimer(self),
+            "releaseTagFetch": QtCore.QTimer(self),
         }
 
         models = {
-            "package": PackageModel(),
+            "package": PackageModel(),  # TODO: should rename to "repository"
+            "detail": JsonModel(),
         }
 
         timers["packageSearch"].timeout.connect(self.on_package_searched)
+        timers["releaseTagFetch"].timeout.connect(self.on_release_tag_fetched)
 
         self._state = state
         self._timers = timers
@@ -93,9 +97,33 @@ class Controller(QtCore.QObject):
         timer.setSingleShot(True)
         timer.start(on_time)
 
+    def defer_fetch_release_tag(self, on_time=200):
+        timer = self._timers["releaseTagFetch"]
+        timer.setSingleShot(True)
+        timer.start(on_time)
+
     def on_package_searched(self):
         self._state["devRepoRoot"].reload()
         self._models["package"].reset(self.iter_dev_packages())
+
+    def on_release_tag_fetched(self):
+        pass
+
+    def on_package_selected(self, name, index):
+        package = self.find_dev_package(name)
+        is_variant = index >= 0
+        if is_variant:
+            variant = package.get_variant(index)
+            data = variant.data.copy()
+        else:
+            data = package.data.copy()
+
+        self._models["detail"].load(data)
+
+        github_repo = data.get("github_repo")
+        if github_repo:
+            # how to pass args into timer ? (only when repo/package changed)
+            print(github_repo)
 
     def iter_dev_packages(self):
         paths = [self._state["devRepoRoot"].uri()]
@@ -120,9 +148,13 @@ class Controller(QtCore.QObject):
                     "qualified_name": qualified_name,
                     "timestamp": package.timestamp,
                     "locations": [path],
-                    "variants": package.num_variants,
-                    "github_repo": package.data.get("github_repo")
+                    "numVariants": package.num_variants,
                 }
                 seen[qualified_name] = doc
 
                 yield doc
+
+    def find_dev_package(self, name):
+        paths = [self._state["devRepoRoot"].uri()]
+        package = get_latest_package_from_string(name, paths=paths)
+        return package

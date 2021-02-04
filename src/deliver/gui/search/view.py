@@ -1,7 +1,7 @@
 
 from ..vendor.Qt5 import QtCore, QtWidgets
 from .. import common
-from .model import PackageProxyModel
+from .model import PackageProxyModel, PackageModel
 
 # TODO:
 #   * parse request into model item check state
@@ -36,6 +36,8 @@ class PackageTabBar(common.view.VerticalDocTabBar):
 
 class PackageView(QtWidgets.QWidget):
     """Single page tab widget"""
+    selected = QtCore.Signal(str, int)  # package name, variant index
+
     def __init__(self, parent=None):
         super(PackageView, self).__init__(parent=parent)
         self.setObjectName("PackageView")
@@ -97,6 +99,9 @@ class PackageView(QtWidgets.QWidget):
         proxy = PackageProxyModel()
         proxy.setSourceModel(model)
         self._widgets["view"].setModel(proxy)
+
+        sel_model = self._widgets["view"].selectionModel()
+        sel_model.selectionChanged.connect(self.on_selection_changed)
 
         model.modelReset.connect(self.on_model_reset)
 
@@ -178,3 +183,12 @@ class PackageView(QtWidgets.QWidget):
 
         # (MacOS) Ensure tab bar *polished* even it's not visible on launch.
         tab.updateGeometry()
+
+    def on_selection_changed(self, selected, deselected):
+        selected = selected.indexes()
+        if selected:
+            item = selected[0].data(role=PackageModel.ItemRole)
+            self.selected.emit(item.get("qualified_name", item["family"]),
+                               item.get("index", -1))
+        else:
+            self.selected.emit("", -1)
