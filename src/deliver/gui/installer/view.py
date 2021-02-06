@@ -14,14 +14,18 @@ class InstallerView(QtWidgets.QWidget):
     def __init__(self, parent=None):
         super(InstallerView, self).__init__(parent=parent)
 
-        page = {
+        widgets = {
             "detail": JsonView(),
+            "target": JsonView(),
+            "install": QtWidgets.QPushButton("Install"),
         }
 
         layout = QtWidgets.QVBoxLayout(self)
-        layout.addWidget(page["detail"])
+        layout.addWidget(widgets["target"])
+        layout.addWidget(widgets["detail"])
+        layout.addWidget(widgets["install"])
 
-        self._page = page
+        self._widgets = widgets
 
     def set_model(self, model):
-        self._page["detail"].setModel(model)
+        self._widgets["detail"].setModel(model)

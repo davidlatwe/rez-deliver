@@ -74,6 +74,7 @@ class Controller(QtCore.QObject):
 
         models = {
             "package": PackageModel(),  # TODO: should rename to "repository"
+            "target": JsonModel(),
             "detail": JsonModel(),
         }
 
