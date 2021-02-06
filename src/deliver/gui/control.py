@@ -17,7 +17,6 @@ class State(dict):
     def __init__(self, storage):
         super(State, self).__init__({
             "devRepoRoot": DevPkgRepository(ROOT),
-            "currentGithubRepo": None,
         })
 
         self._storage = storage
@@ -63,7 +62,6 @@ class State(dict):
 
 
 class Controller(QtCore.QObject):
-    tag_fetched = QtCore.Signal(str, list)
 
     def __init__(self, storage=None, parent=None):
         super(Controller, self).__init__(parent=parent)
@@ -72,7 +70,6 @@ class Controller(QtCore.QObject):
 
         timers = {
             "packageSearch": QtCore.QTimer(self),
-            "releaseTagFetch": QtCore.QTimer(self),
         }
 
         models = {
@@ -81,7 +78,6 @@ class Controller(QtCore.QObject):
         }
 
         timers["packageSearch"].timeout.connect(self.on_package_searched)
-        timers["releaseTagFetch"].timeout.connect(self.on_release_tag_fetched)
 
         self._state = state
         self._timers = timers
@@ -100,20 +96,9 @@ class Controller(QtCore.QObject):
         timer.setSingleShot(True)
         timer.start(on_time)
 
-    def defer_fetch_release_tag(self, on_time=200):
-        timer = self._timers["releaseTagFetch"]
-        timer.setSingleShot(True)
-        timer.start(on_time)
-
     def on_package_searched(self):
         self._state["devRepoRoot"].reload()
         self._models["package"].reset(self.iter_dev_packages())
-
-    def on_release_tag_fetched(self):
-        github_repo = self._state["currentGithubRepo"]
-        if github_repo:
-            tags = list(git.get_released_tags(github_repo))
-            self.tag_fetched.emit(github_repo, tags)
 
     def on_package_selected(self, name, index):
         package = self.find_dev_package(name)
@@ -125,13 +110,6 @@ class Controller(QtCore.QObject):
             data = package.data.copy()
 
         self._models["detail"].load(data)
-
-        github_repo = data.get("github_repo")
-        current_repo = self._state["currentGithubRepo"]
-        outdated = github_repo != current_repo
-        if outdated:
-            self._state["currentGithubRepo"] = github_repo
-            self.defer_fetch_release_tag()
 
     def iter_dev_packages(self):
         paths = [self._state["devRepoRoot"].uri()]

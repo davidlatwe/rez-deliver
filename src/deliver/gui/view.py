@@ -24,7 +24,6 @@ class Window(QtWidgets.QWidget):
 
         # signals
         pages["package"].selected.connect(ctrl.on_package_selected)
-        ctrl.tag_fetched.connect(pages["installer"].on_tag_fetched)
 
         self._ctrl = ctrl
         self._pages = pages
