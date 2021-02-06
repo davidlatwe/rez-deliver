@@ -1,4 +1,5 @@
 
+import argparse
 from rez.packages import iter_package_families
 from rez.packages import get_latest_package_from_string
 from . import pkgs
@@ -82,3 +83,34 @@ def confirm(msg):
         return True  # On just hitting enter
     except KeyboardInterrupt:
         return False
+
+
+def main():
+    # TODO: ensure vcs plugin "kit" is loaded on package release
+    # TODO: This deploy script requires to be in rez venv
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("packages", nargs="*",
+                        help="Package names to deploy.")
+    parser.add_argument("--release", action="store_true",
+                        help="Deploy to package releasing location.")
+    parser.add_argument("--yes", action="store_true",
+                        help="Yes to all.")
+    parser.add_argument("--list", action="store_true",
+                        help="List out packages that can be deployed. If "
+                             "`packages` given, versions will be listed.")
+
+    opt = parser.parse_args()
+
+    if opt.list:
+        list_developer_packages(opt.packages)
+        return
+
+    if opt.packages:
+        if deploy_packages(opt.packages, opt.release, opt.yes):
+            print("=" * 30)
+            print("SUCCESS!\n")
+
+    else:
+        print("Please name at least one package to deploy. Use --list to "
+              "view available packages.")
