@@ -29,20 +29,18 @@ rez_logger.setLevel(logging.WARNING)
 
 class DevPkgRepository(object):
 
-    def __init__(self, root, local_dir=None, remote_dir=None, externals=None):
-        local_dir = local_dir or "packages"
-        remote_dir = remote_dir or "downloads"
-        externals = externals or "ext-packages.json"
+    LocalDirName = "packages"
+    RemoteDirName = "downloads"
+    ExternalsName = "ext-packages.json"
+
+    def __init__(self, root=None):
 
         dev_package_paths = [
-            os.path.join(root, local_dir),
-            os.path.join(root, remote_dir),
+            os.path.join(root, self.LocalDirName),
+            os.path.join(root, self.RemoteDirName),
         ]
 
         self._root = root
-        self._local_dir = local_dir
-        self._remote_dir = remote_dir
-        self._externals = externals
         self._memory = "memory@" + root
         self._dev_package_paths = dev_package_paths
 
@@ -58,7 +56,7 @@ class DevPkgRepository(object):
         return "@".join(pkg.parent.repository.uid[:2]) == self._memory
 
     def _update_ext_packages(self):
-        ext_pkg_list = os.path.join(self._root, self._externals)
+        ext_pkg_list = os.path.join(self._root, self.ExternalsName)
         if os.path.isfile(ext_pkg_list):
             with open(ext_pkg_list, "r") as ext_f:
                 ext_pkg_repos = json.load(ext_f)
@@ -69,7 +67,7 @@ class DevPkgRepository(object):
             # TODO: checkout latest
             git.clone(
                 url=repo["url"],
-                dst=os.path.join(self._root, self._remote_dir, repo["name"]),
+                dst=os.path.join(self._root, self.RemoteDirName, repo["name"]),
                 branch=repo.get("branch"),
             )
 
