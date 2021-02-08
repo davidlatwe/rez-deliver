@@ -7,16 +7,11 @@ from ..pkgs import DevPkgRepository
 from .. import git
 
 
-ROOT = "C:/Users/davidlatwe.lai/pipeline/rez-kit"
-# ROOT = "C:/Users/davidlatwe.lai/pipeline/rez-deliver/test"
-REZ_SRC = "C:/Users/davidlatwe.lai/pipeline/rez"
-
-
 class State(dict):
 
     def __init__(self, storage):
         super(State, self).__init__({
-            "devRepoRoot": DevPkgRepository(ROOT),
+            "devRepoRoot": DevPkgRepository(),
         })
 
         self._storage = storage
