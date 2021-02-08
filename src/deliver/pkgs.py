@@ -20,7 +20,7 @@ from rez.utils.logging_ import logger as rez_logger
 from rez.packages import get_latest_package_from_string
 from rez.package_repository import package_repository_manager
 
-from . import git
+from . import git, deliverconfig
 
 
 # silencing rez logger, e.g. on package preprocessing
@@ -34,6 +34,7 @@ class DevPkgRepository(object):
     ExternalsName = "ext-packages.json"
 
     def __init__(self, root=None):
+        root = root or deliverconfig.dev_repository_root
 
         dev_package_paths = [
             os.path.join(root, self.LocalDirName),
@@ -160,10 +161,10 @@ class DevPkgRepository(object):
 
 class PackageInstaller(object):
 
-    def __init__(self, dev_repo, rezsrc_path, release):
+    def __init__(self, dev_repo, release, rezsrc=None):
         self.release = release
         self.dev_repo = dev_repo
-        self.rezsrc_path = rezsrc_path
+        self.rezsrc_path = rezsrc or deliverconfig.rez_source_path
         self._requirements = OrderedDict()
 
     def reset(self):

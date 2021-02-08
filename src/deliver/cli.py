@@ -1,18 +1,51 @@
 
+import os
 import argparse
 from rez.packages import iter_package_families
 from rez.packages import get_latest_package_from_string
-from . import pkgs
+from . import pkgs, deliverconfig
 
 
-ROOT = "C:/Users/davidlatwe.lai/pipeline/rez-kit"
-ROOT = "C:/Users/davidlatwe.lai/pipeline/rez-deliver/test"
-REZ_SRC = "C:/Users/davidlatwe.lai/pipeline/rez"
+UserError = type("UserError", (Exception,), {})
+
+
+def load_userconfig(fname=None):
+    fname = fname or os.getenv(
+        "DELIVER_CONFIG_FILE",
+        os.path.expanduser("~/deliverconfig.py")
+    )
+
+    mod = {
+        "__file__": fname,
+    }
+
+    try:
+        with open(fname) as f:
+            exec(compile(f.read(), f.name, "exec"), mod)
+
+    except IOError:
+        raise
+
+    except Exception:
+        raise UserError("Better double-check your deliver user config")
+
+    for key in dir(deliverconfig):
+        if key.startswith("__"):
+            continue
+
+        try:
+            value = mod[key]
+        except KeyError:
+            continue
+
+        setattr(deliverconfig, key, value)
+
+    return fname
 
 
 def list_developer_packages(requests):
 
-    dev_repo = pkgs.DevPkgRepository(ROOT)
+    dev_repo = pkgs.DevPkgRepository()
     dev_repo.reload()
 
     requests = requests or []
@@ -40,8 +73,8 @@ def list_developer_packages(requests):
 
 
 def deploy_packages(requests, release, yes=False):
-    dev_repo = pkgs.DevPkgRepository(ROOT)
-    installer = pkgs.PackageInstaller(dev_repo, REZ_SRC, release=release)
+    dev_repo = pkgs.DevPkgRepository()
+    installer = pkgs.PackageInstaller(dev_repo, release=release)
 
     dev_repo.reload()
 
@@ -101,6 +134,8 @@ def main():
                              "`packages` given, versions will be listed.")
 
     opt = parser.parse_args()
+
+    load_userconfig()
 
     if opt.list:
         list_developer_packages(opt.packages)
