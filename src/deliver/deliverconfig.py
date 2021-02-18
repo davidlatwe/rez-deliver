@@ -10,12 +10,14 @@ deliver_targets = [
     # template: package install/release path template
     # source: JSON that contains key-values for template keyword formatting
     {
-        "name": "department beta",
+        "name": "dept",
+        "description": "department beta",
         "template": "T:/rez-studio/packages/1/beta-dept/{department}",
         "source": "T:/rez-studio/deploy/data/targets.json",
     },
     {
-        "name": "user beta",
+        "name": "user",
+        "description": "user beta",
         "template": "T:/rez-studio/packages/1/beta-user/{user}",
         "source": "T:/rez-studio/deploy/data/targets.json",
     },
