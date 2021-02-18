@@ -36,19 +36,6 @@ setup_args = dict(
             "../rezplugins/release_vcs/*.py",
         ],
     },
-    entry_points={
-        "console_scripts": get_specifications().values(),
-    },
-    packages=find_packages("src"),
-    package_dir={"": "src"},
-    include_package_data=True,
-    zip_safe=False,
-    license="LGPL",
-    author="davidlatwe",
-    author_email="davidlatwe@gmail.com",
-    version=version,
-    description="Rez cli for releasing packages from GitHub repositories",
-    long_description=None,
     install_requires=[
         "pygithub",
         "requests==2.24.0",
@@ -56,6 +43,20 @@ setup_args = dict(
     extras_require={
         "gui":  ["qt5.py", "pyside2"],
     },
+    entry_points={
+        "console_scripts": get_specifications().values(),
+    },
+    packages=find_packages("src"),
+    package_dir={"": "src"},
+    include_package_data=True,
+    zip_safe=False,
+
+    license="LGPL",
+    author="davidlatwe",
+    author_email="davidlatwe@gmail.com",
+    version=version,
+    description="Rez cli for releasing packages from GitHub repositories",
+    long_description=None,
 )
 
 
@@ -104,7 +105,7 @@ setup(
     cmdclass={
         "install_lib": InstallLibWithRezBinsPatch,
     },
-    classifiers = [
+    classifiers=[
         "Development Status :: 5 - Production/Stable",
         "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
         "Intended Audience :: Developers",
