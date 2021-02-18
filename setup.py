@@ -106,7 +106,7 @@ setup(
     },
     classifiers = [
         "Development Status :: 5 - Production/Stable",
-        "License :: OSI Approved :: GNU General Public License v3.0",
+        "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
         "Intended Audience :: Developers",
         "Operating System :: OS Independent",
         "Programming Language :: Python",
