@@ -125,6 +125,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("packages", nargs="*",
                         help="Package names to deploy.")
+    # TODO: instead of passing bool, change to pass deliver target name.
     parser.add_argument("--release", action="store_true",
                         help="Deploy to package releasing location.")
     parser.add_argument("--yes", action="store_true",
