@@ -22,3 +22,9 @@ deliver_targets = [
         "source": "T:/rez-studio/deploy/data/targets.json",
     },
 ]
+
+# Cache dev packages into a JSON file for quicker startup on next launch.
+cache_dev_packages = False
+
+# Auto update dev packages cache after given days
+dev_packages_cache_days = 7
