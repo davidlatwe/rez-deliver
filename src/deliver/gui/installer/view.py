@@ -1,8 +1,8 @@
 
 
 # TODO:
-#   - view github releases
 #   - view package details, e.g. dependencies, variants, descriptions
+#   - release target selector
 #   - deploy buttons, log
 
 from ..vendor.Qt5 import QtWidgets
