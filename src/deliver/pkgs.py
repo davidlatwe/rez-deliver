@@ -7,7 +7,7 @@ import contextlib
 from collections import OrderedDict
 from itertools import chain
 
-from rez.config import config
+from rez.config import config as rezconfig
 from rez.system import system
 from rez.package_maker import PackageMaker
 from rez.vendor.version.version import Version
@@ -20,7 +20,8 @@ from rez.utils.logging_ import logger as rez_logger
 from rez.packages import get_latest_package_from_string
 from rez.package_repository import package_repository_manager
 
-from . import git, deliverconfig
+from . import git
+from .config import config
 
 
 # silencing rez logger, e.g. on package preprocessing
@@ -34,7 +35,7 @@ class DevPkgRepository(object):
     ExternalsName = "ext-packages.json"
 
     def __init__(self, root=None):
-        root = root or deliverconfig.dev_repository_root
+        root = root or config.dev_repository_root
 
         dev_package_paths = [
             os.path.join(root, self.LocalDirName),
@@ -105,7 +106,7 @@ class DevPkgRepository(object):
             # If we don't do this, requirements like "os-*" or "python-2.*"
             # may raise error like schema validation fail (which is also
             # confusing) due to package not found.
-            "packages_path": config.packages_path[:] + dev_paths,
+            "packages_path": rezconfig.packages_path[:] + dev_paths,
             # Ensure unversioned package is allowed, so we can iter dev
             # packages.
             "allow_unversioned_packages": True,
@@ -161,17 +162,37 @@ class DevPkgRepository(object):
 
 class PackageInstaller(object):
 
-    def __init__(self, dev_repo, release, rezsrc=None):
-        self.release = release
+    def __init__(self, dev_repo, rezsrc=None):
+        self.release = False
         self.dev_repo = dev_repo
-        self.rezsrc_path = rezsrc or deliverconfig.rez_source_path
+        self.rezsrc_path = rezsrc or config.rez_source_path
         self._requirements = OrderedDict()
+        self._target_name = None
+        self._target_args = dict()
 
     def reset(self):
         self._requirements.clear()
 
     def manifest(self):
         return self._requirements.copy()
+
+    def target(self, release, name=None, **kwargs):
+        self.release = release
+        self._target_name = name
+        self._target_args = kwargs
+
+        # validate keyword value
+        for k, v in kwargs.items():
+            # TODO: each value of `release_target_param` is a string pair that
+            #  the first is used in filesystem path, and the other is used as
+            #  pretty name in GUI.
+            values = [v_[0] for v_ in config.release_target_param[k]]
+
+            if v not in values:
+                raise ValueError("Unable to format target %r: "
+                                 "%r is not valid for key %r" % (name, v, k))
+
+        return self._install_path()
 
     def run(self):
         for (q_name, v_index), (exists, src) in self._requirements.items():
@@ -260,7 +281,7 @@ class PackageInstaller(object):
 
     def _get_build_context(self, variant):
         paths = self._package_paths() + [self.dev_repo.uri()]
-        implicit_pkgs = list(map(PackageRequest, config.implicit_packages))
+        implicit_pkgs = list(map(PackageRequest, rezconfig.implicit_packages))
         pkg_requests = variant.get_requires(build_requires=True,
                                             private_build_requires=True)
         return ResolvedContext(pkg_requests + implicit_pkgs,
@@ -294,27 +315,40 @@ class PackageInstaller(object):
 
     def _package_paths(self):
         if self.release:
-            return config.nonlocal_packages_path[:]
+            return rezconfig.nonlocal_packages_path[:]
         else:
-            return config.packages_path[:]
+            return rezconfig.packages_path[:]
 
     def _install_path(self):
         if self.release:
-            return config.release_packages_path
+            return format_release_target(self._target_name, self._target_args)
         else:
-            return config.local_packages_path
+            return rezconfig.local_packages_path
+
+
+def format_release_target(name, values):
+    for target in config.release_targets:
+        if target["name"] != name:
+            continue
+
+        path = target["template"]
+        path = path.format(**values)
+
+        return path
+    else:
+        raise RuntimeError("Unknown release target: %s" % name)
 
 
 @contextlib.contextmanager
 def override_config(entries):
     try:
         for key, value in entries.items():
-            config.override(key, value)
+            rezconfig.override(key, value)
         yield
 
     finally:
         for key in entries.keys():
-            config.remove_override(key)
+            rezconfig.remove_override(key)
 
 
 def clear_repo_cache(path):
