@@ -1,9 +1,12 @@
 
+import os as __os
 
-# dev_repository_root = "C:/Users/davidlatwe.lai/pipeline/rez-kit"
-dev_repository_root = "C:/Users/davidlatwe.lai/pipeline/rez-deliver/test"
+dev_repository_root = "~/pipeline/rez-deliver/test"
 
-rez_source_path = "C:/Users/davidlatwe.lai/pipeline/rez"
+rez_source_path = "~/pipeline/rez"
+
+with open(__os.path.expanduser("~/github.token"), "r") as f:
+    github_token = f.read().strip()
 
 # Rez package release destinations
 deliver_targets = [
@@ -29,7 +32,6 @@ deliver_targets = [
         "source": None,
     },
 ]
-# TODO: Use this target list to generate rezconfig packages_path ?
 
 # Cache dev packages into a JSON file for quicker startup on next launch.
 cache_dev_packages = False

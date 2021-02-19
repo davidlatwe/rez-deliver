@@ -2,12 +2,11 @@
 import os
 import subprocess
 from datetime import datetime
-from github import Github
-# PyGithub, requests==2.24.0
+from github import Github  # PyGithub, requests==2.24.0
+from . import deliverconfig
 
-with open(os.path.expanduser("~/github.token"), "r") as token_f:
-    token = token_f.read().strip()
-g = Github(token)
+
+g = Github(deliverconfig.github_token)
 
 
 def clone(url, dst, branch=None, single_branch=True):
