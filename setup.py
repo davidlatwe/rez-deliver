@@ -17,6 +17,18 @@ if sys.version_info < (2, 7):
     sys.exit(1)
 
 
+# This package should be installed in Rez production install venv
+try:
+    from rez.system import system as rez_system
+except ImportError:
+    print("install failed - Rez not found.")
+    sys.exit(1)
+
+if rez_system.rez_bin_path is None:
+    print("install failed - Rez is not a production install.")
+    sys.exit(1)
+
+
 # carefully import some sourcefiles that are standalone
 source_path = os.path.dirname(os.path.realpath(__file__))
 src_path = os.path.join(source_path, "src")
