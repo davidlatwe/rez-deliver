@@ -67,7 +67,7 @@ class Controller(QtCore.QObject):
         }
 
         models_ = {
-            "package": model.PackageBookModel(),
+            "pkgBook": model.PackageBookModel(),
             "target": common.model.JsonModel(),
             "detail": common.model.JsonModel(),
         }
@@ -93,7 +93,7 @@ class Controller(QtCore.QObject):
 
     def on_package_searched(self):
         self._state["devRepoRoot"].reload()
-        self._models["package"].reset(self.iter_dev_packages())
+        self._models["pkgBook"].reset(self.iter_dev_packages())
 
     def on_package_selected(self, name, index):
         if name:

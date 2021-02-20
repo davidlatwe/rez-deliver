@@ -9,20 +9,20 @@ class Window(QtWidgets.QWidget):
         super(Window, self).__init__(parent=parent)
 
         pages = {
-            "package": view.PackageBookView(),
+            "pkgBook": view.PackageBookView(),
             "installer": view.InstallerView(),
         }
 
         layout = QtWidgets.QHBoxLayout(self)
-        layout.addWidget(pages["package"])
+        layout.addWidget(pages["pkgBook"])
         layout.addWidget(pages["installer"])
 
         # setup
-        pages["package"].set_model(ctrl.models["package"])
+        pages["pkgBook"].set_model(ctrl.models["pkgBook"])
         pages["installer"].set_model(ctrl.models["detail"])
 
         # signals
-        pages["package"].selected.connect(ctrl.on_package_selected)
+        pages["pkgBook"].selected.connect(ctrl.on_package_selected)
 
         self._ctrl = ctrl
         self._pages = pages
