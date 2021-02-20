@@ -19,10 +19,19 @@ class Window(QtWidgets.QWidget):
 
         # setup
         pages["pkgBook"].set_model(ctrl.models["pkgBook"])
-        pages["installer"].set_model(ctrl.models["detail"])
+        pages["installer"].set_model(ctrl.models["detail"],
+                                     ctrl.models["targets"],
+                                     ctrl.models["pathKeys"])
 
         # signals
+        ctrl.models["pathKeys"].formatted.connect(self.on_target_formatted)
         pages["pkgBook"].selected.connect(ctrl.on_package_selected)
+        pages["installer"].targeted.connect(ctrl.defer_load_target_keys)
 
         self._ctrl = ctrl
         self._pages = pages
+
+    def on_target_formatted(self):
+        kwargs = self._ctrl.models["pathKeys"].kwargs()
+        path = self._ctrl.state["releaseTemplate"].format(**kwargs)
+        self._pages["installer"].set_path(path)

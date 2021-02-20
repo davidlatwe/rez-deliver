@@ -181,3 +181,77 @@ class PackageBookProxyModel(QtCore.QSortFilterProxyModel):
         self.setFilterCaseSensitivity(QtCore.Qt.CaseInsensitive)
         self.setSortCaseSensitivity(QtCore.Qt.CaseInsensitive)
         self.setFilterRole(PackageBookModel.FilterRole)
+
+
+class StringFormatModel(common.model.AbstractTableModel):
+    formatted = QtCore.Signal()
+    ItemRole = QtCore.Qt.UserRole + 10
+    ValuesRole = QtCore.Qt.UserRole + 11
+    Headers = [
+        "key",
+        "value",
+    ]
+
+    def __init__(self, parent=None):
+        super(StringFormatModel, self).__init__(parent=parent)
+        self.items = []
+
+    def load(self, data):
+        self.beginResetModel()
+        self.items.clear()
+
+        for key, values in data.items():
+            default = values[0]
+            item = {
+                "key": key,
+                "value": default[1],  # TODO: load previous selection
+                "_val_": default[0],
+                "values": values,
+            }
+            self.items.append(item)
+
+        self.endResetModel()
+
+    def kwargs(self):
+        return {item["key"]: item["_val_"] for item in self.items}
+
+    def data(self, index, role=QtCore.Qt.DisplayRole):
+        if not index.isValid():
+            return None
+
+        if role == QtCore.Qt.DisplayRole:
+            col = index.column()
+            row = index.row()
+            item = self.items[row]
+            key = self.Headers[col]
+            return item[key]
+
+        if role == self.ValuesRole:
+            row = index.row()
+            item = self.items[row]
+            return item["values"][:]
+
+        if role == self.ItemRole:
+            row = index.row()
+            item = self.items[row]
+            return item.copy()
+
+    def setData(self, index, value, role=QtCore.Qt.EditRole):
+        if index.column() == 1:
+            row = index.row()
+            item = self.items[row]
+            item["_val_"] = value[0]
+            item["value"] = value[1]
+
+            self.dataChanged.emit(index, index)
+            self.formatted.emit()
+
+    def flags(self, index):
+        if index.column() == 1:
+            return (
+                QtCore.Qt.ItemIsEnabled |
+                QtCore.Qt.ItemIsEditable |
+                ~QtCore.Qt.ItemIsSelectable
+            )
+
+        return QtCore.Qt.NoItemFlags

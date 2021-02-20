@@ -1,6 +1,6 @@
 
 from .vendor.Qt5 import QtCore, QtWidgets
-from . import common, model
+from . import common, model, delegate
 
 # TODO:
 #   * parse request into model item check state
@@ -193,20 +193,40 @@ class PackageBookView(QtWidgets.QWidget):
             self.selected.emit("", -1)
 
 
+class PackageDependencyView(QtWidgets.QWidget):
+    pass
+
+
+class PackageDataView(QtWidgets.QWidget):
+    # Package
+    # - Name:
+    # - Version:
+    # - Description:
+    # - Variants:
+    # - Dependencies:
+
+    def __init__(self, parent=None):
+        super(PackageDataView, self).__init__(parent=parent)
+
+        widgets = {
+            "name": QtWidgets.QLabel(),
+        }
+
+
+class StringFormatView(common.view.SlimTableView):
+
+    def __init__(self, parent=None):
+        super(StringFormatView, self).__init__(parent=parent)
+
+
 class InstallerView(QtWidgets.QWidget):
+
+    targeted = QtCore.Signal(str)
 
     # TODO:
     #   - view package details, e.g. dependencies, variants, descriptions
     #   - release target selector
     #   - deploy buttons, log
-
-    # Package
-    # - Name:
-    # - Version:
-    # - Description:
-    # - Requires:
-    # - Variants:
-    # - Dependencies:
 
     # Release
     # - Target:
@@ -219,16 +239,31 @@ class InstallerView(QtWidgets.QWidget):
 
         widgets = {
             "detail": common.view.JsonView(),
-            "target": common.view.JsonView(),
+            "targets": QtWidgets.QComboBox(),
+            "keys": StringFormatView(),
+            "path": QtWidgets.QLineEdit(),
             "install": QtWidgets.QPushButton("Install"),
         }
 
+        widgets["keys"].setItemDelegateForColumn(
+            1, delegate.StringFormatValueDelegate()
+        )
+
         layout = QtWidgets.QVBoxLayout(self)
-        layout.addWidget(widgets["target"])
+        layout.addWidget(widgets["targets"])
+        layout.addWidget(widgets["path"])
+        layout.addWidget(widgets["keys"])
         layout.addWidget(widgets["detail"])
         layout.addWidget(widgets["install"])
 
+        widgets["targets"].currentTextChanged.connect(self.targeted.emit)
+
         self._widgets = widgets
 
-    def set_model(self, model_):
-        self._widgets["detail"].setModel(model_)
+    def set_model(self, model_d, model_t, model_k):
+        self._widgets["detail"].setModel(model_d)
+        self._widgets["targets"].setModel(model_t)
+        self._widgets["keys"].setModel(model_k)
+
+    def set_path(self, path):
+        self._widgets["path"].setText(path)

@@ -3,7 +3,7 @@ from rez.packages import iter_package_families, get_latest_package_from_string
 from .vendor.Qt5 import QtCore
 from . import model, common
 from .. import pkgs
-from .. import git
+from ..config import config
 
 
 class State(dict):
@@ -11,6 +11,8 @@ class State(dict):
     def __init__(self, storage):
         super(State, self).__init__({
             "devRepoRoot": pkgs.DevPkgManager(),
+            "releaseTarget": None,
+            "releaseTemplate": None,
         })
 
         self._storage = storage
@@ -64,15 +66,22 @@ class Controller(QtCore.QObject):
 
         timers = {
             "packageSearch": QtCore.QTimer(self),
+            "targetsLoad": QtCore.QTimer(self),
+            "targetKeysLoad": QtCore.QTimer(self),
         }
 
         models_ = {
             "pkgBook": model.PackageBookModel(),
-            "target": common.model.JsonModel(),
+            "pkgData": common.model.JsonModel(),
+            "pkgDep": None,
+            "targets": QtCore.QStringListModel(),
+            "pathKeys": model.StringFormatModel(),
             "detail": common.model.JsonModel(),
         }
 
         timers["packageSearch"].timeout.connect(self.on_package_searched)
+        timers["targetsLoad"].timeout.connect(self.on_target_loaded)
+        timers["targetKeysLoad"].timeout.connect(self.on_target_keys_loaded)
 
         self._state = state
         self._timers = timers
@@ -91,22 +100,49 @@ class Controller(QtCore.QObject):
         timer.setSingleShot(True)
         timer.start(on_time)
 
+    def defer_load_targets(self, on_time=50):
+        timer = self._timers["targetsLoad"]
+        timer.setSingleShot(True)
+        timer.start(on_time)
+
+    def defer_load_target_keys(self, name, on_time=50):
+        self._state["releaseTarget"] = name
+        self._state["releaseTemplate"] = next(
+            t["template"] for t in config.release_targets if t["name"] == name
+        )
+
+        timer = self._timers["targetKeysLoad"]
+        timer.setSingleShot(True)
+        timer.start(on_time)
+
     def on_package_searched(self):
         self._state["devRepoRoot"].reload()
         self._models["pkgBook"].reset(self.iter_dev_packages())
 
+    def on_target_loaded(self):
+        targets = [t["name"] for t in config.release_targets]
+        self._models["targets"].setStringList(targets)
+
+    def on_target_keys_loaded(self):
+        target = self._state["releaseTarget"]
+        param = config.release_target_param
+
+        self._models["pathKeys"].load({
+            key: param[key]
+            for key in config.list_target_required_keys(target)
+        })
+
+        self._models["pathKeys"].formatted.emit()
+
     def on_package_selected(self, name, index):
         if name:
             package = self.find_dev_package(name)
-            is_variant = index >= 0
-            if is_variant:
-                variant = package.get_variant(index)
-                print(variant)
-                # data = variant.data.copy()
-                data = {}
-            else:
-                data = package.data.copy()
+            # is_variant = index >= 0
+            #
+            # if is_variant:
+            #     variant = package.get_variant(index)
 
+            data = package.data.copy()
             self._models["detail"].load(data)
         else:
             self._models["detail"].clear()
