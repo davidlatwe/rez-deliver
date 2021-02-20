@@ -1,17 +1,17 @@
 
-from Qt5 import QtCore, QtGui
-from ..common.model import AbstractTreeModel, TreeItem
+from .vendor.Qt5 import QtCore, QtGui
+from . import common
 
 QtCheckState = QtCore.Qt.CheckState
 
 
-class PackageItem(TreeItem):
+class PackageItem(common.model.TreeItem):
     def __init__(self, data=None):
         super(PackageItem, self).__init__(data or {})
         self["_isChecked"] = QtCheckState.Unchecked
 
 
-class PackageModel(AbstractTreeModel):
+class PackageModel(common.model.AbstractTreeModel):
     ItemRole = QtCore.Qt.UserRole + 10
     FilterRole = QtCore.Qt.UserRole + 11
     CompletionRole = QtCore.Qt.UserRole + 12

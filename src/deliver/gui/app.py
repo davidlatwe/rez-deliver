@@ -1,7 +1,6 @@
 
-from Qt5 import QtWidgets
-from .search.view import PackageView
-from .installer.view import InstallerView
+from .vendor.Qt5 import QtWidgets
+from . import view
 
 
 class Window(QtWidgets.QWidget):
@@ -10,8 +9,8 @@ class Window(QtWidgets.QWidget):
         super(Window, self).__init__(parent=parent)
 
         pages = {
-            "package": PackageView(),
-            "installer": InstallerView(),
+            "package": view.PackageView(),
+            "installer": view.InstallerView(),
         }
 
         layout = QtWidgets.QHBoxLayout(self)

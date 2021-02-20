@@ -1,9 +1,8 @@
 
-from Qt5 import QtCore
 from rez.packages import iter_package_families, get_latest_package_from_string
-from .search.model import PackageModel
-from .common.model import JsonModel
-from ..pkgs import DevPkgManager
+from .vendor.Qt5 import QtCore
+from . import model, common
+from .. import pkgs
 from .. import git
 
 
@@ -11,7 +10,7 @@ class State(dict):
 
     def __init__(self, storage):
         super(State, self).__init__({
-            "devRepoRoot": DevPkgManager(),
+            "devRepoRoot": pkgs.DevPkgManager(),
         })
 
         self._storage = storage
@@ -67,17 +66,17 @@ class Controller(QtCore.QObject):
             "packageSearch": QtCore.QTimer(self),
         }
 
-        models = {
-            "package": PackageModel(),  # TODO: should rename to "repository"
-            "target": JsonModel(),
-            "detail": JsonModel(),
+        models_ = {
+            "package": model.PackageModel(),  # TODO: should rename to "repository"
+            "target": common.model.JsonModel(),
+            "detail": common.model.JsonModel(),
         }
 
         timers["packageSearch"].timeout.connect(self.on_package_searched)
 
         self._state = state
         self._timers = timers
-        self._models = models
+        self._models = models_
 
     @property
     def state(self):  # state is also like a model and good to be exposed

@@ -1,7 +1,6 @@
 
-from ..vendor.Qt5 import QtCore, QtWidgets
-from .. import common
-from .model import PackageProxyModel, PackageModel
+from .vendor.Qt5 import QtCore, QtWidgets
+from . import common, model
 
 # TODO:
 #   * parse request into model item check state
@@ -95,15 +94,15 @@ class PackageView(QtWidgets.QWidget):
         self._widgets["view"].setColumnWidth(0, 180)  # name
         self._widgets["view"].setColumnWidth(1, 120)  # date
 
-    def set_model(self, model):
-        proxy = PackageProxyModel()
-        proxy.setSourceModel(model)
+    def set_model(self, model_):
+        proxy = model.PackageProxyModel()
+        proxy.setSourceModel(model_)
         self._widgets["view"].setModel(proxy)
 
         sel_model = self._widgets["view"].selectionModel()
         sel_model.selectionChanged.connect(self.on_selection_changed)
 
-        model.modelReset.connect(self.on_model_reset)
+        model_.modelReset.connect(self.on_model_reset)
 
     def model(self):
         proxy = self._widgets["view"].model()
@@ -122,12 +121,12 @@ class PackageView(QtWidgets.QWidget):
         tab = self._widgets["tab"]
         view = self._widgets["view"]
         proxy = self.proxy()
-        model = self.model()
+        model_ = self.model()
 
         group = tab.tabText(index)
-        for i, item in enumerate(model.iter_items()):
+        for i, item in enumerate(model_.iter_items()):
             if item["_group"] == group:
-                index = model.index(i, 0)
+                index = model_.index(i, 0)
                 index = proxy.mapFromSource(index)
                 view.scroll_at_top(index)
                 return
@@ -139,11 +138,11 @@ class PackageView(QtWidgets.QWidget):
         tab = self._widgets["tab"]
         view = self._widgets["view"]
         proxy = self.proxy()
-        model = self.model()
+        model_ = self.model()
 
         index = view.top_scrolled_index(value)
         index = proxy.mapToSource(index)
-        name = model.data(index)
+        name = model_.data(index)
         if name:
             group = name[0].upper()
             index = self._groups.index(group)
@@ -171,13 +170,13 @@ class PackageView(QtWidgets.QWidget):
 
     def on_model_reset(self):
         tab = self._widgets["tab"]
-        model = self.model()
+        model_ = self.model()
 
         self._groups.clear()
         for index in range(tab.count()):
             tab.removeTab(index)
 
-        for group in model.name_groups():
+        for group in model_.name_groups():
             self._groups.append(group)
             tab.addTab(group)
 
@@ -187,8 +186,49 @@ class PackageView(QtWidgets.QWidget):
     def on_selection_changed(self, selected, deselected):
         selected = selected.indexes()
         if selected:
-            item = selected[0].data(role=PackageModel.ItemRole)
+            item = selected[0].data(role=model.PackageModel.ItemRole)
             self.selected.emit(item.get("qualified_name", item["family"]),
                                item.get("index", -1))
         else:
             self.selected.emit("", -1)
+
+
+class InstallerView(QtWidgets.QWidget):
+
+    # TODO:
+    #   - view package details, e.g. dependencies, variants, descriptions
+    #   - release target selector
+    #   - deploy buttons, log
+
+    # Package
+    # - Name:
+    # - Version:
+    # - Description:
+    # - Requires:
+    # - Variants:
+    # - Dependencies:
+
+    # Release
+    # - Target:
+    # - Keys:
+    # - Path:
+    # - Manifest:
+
+    def __init__(self, parent=None):
+        super(InstallerView, self).__init__(parent=parent)
+
+        widgets = {
+            "detail": common.view.JsonView(),
+            "target": common.view.JsonView(),
+            "install": QtWidgets.QPushButton("Install"),
+        }
+
+        layout = QtWidgets.QVBoxLayout(self)
+        layout.addWidget(widgets["target"])
+        layout.addWidget(widgets["detail"])
+        layout.addWidget(widgets["install"])
+
+        self._widgets = widgets
+
+    def set_model(self, model_):
+        self._widgets["detail"].setModel(model_)
