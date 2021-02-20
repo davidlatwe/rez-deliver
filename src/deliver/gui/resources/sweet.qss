@@ -391,17 +391,17 @@ QTabBar QToolButton:disabled {
     border: 1px solid %(border.bright)s;
 }
 
-#PackageView {
+#PackageBookView {
     background-color: %(background.bright)s;
 }
 
-#PackagePage {
+#PackageBookPage {
     background-color: %(surface.bright)s;
     border: 1px solid %(border.bright)s;
     border-left: none;
 }
 
-#PackageSide {
+#PackageBookSide {
     background-color: transparent;
     border: none;
     border-right: 1px solid %(border.bright)s;
@@ -528,37 +528,37 @@ QHeaderView::up-arrow {
     width: 8px;
 }
 
-#PackageTreeView::item{
+#PackageBookTreeView::item{
     padding: 5px 1px;
     border: 0px;
 }
 
-#PackageTreeView::item:selected{
+#PackageBookTreeView::item:selected{
     padding: 5px 1px;
     border: 0px;
 }
 
-#PackageTreeView::indicator:unchecked {
+#PackageBookTreeView::indicator:unchecked {
     image: url(%(res)s/checkbox_unchecked.png);
 }
 
-#PackageTreeView::indicator:unchecked:disabled {
+#PackageBookTreeView::indicator:unchecked:disabled {
     image: url(%(res)s/checkbox_unchecked_dim.png);
 }
 
-#PackageTreeView::indicator:checked {
+#PackageBookTreeView::indicator:checked {
     image: url(%(res)s/checkbox_checked.png);
 }
 
-#PackageTreeView::indicator:checked:disabled {
+#PackageBookTreeView::indicator:checked:disabled {
     image: url(%(res)s/checkbox_checked_dim.png);
 }
 
-#PackageTreeView::indicator:indeterminate {
+#PackageBookTreeView::indicator:indeterminate {
     image: url(%(res)s/checkbox_indeterminate.png);
 }
 
-#PackageTreeView::indicator:indeterminate:disabled {
+#PackageBookTreeView::indicator:indeterminate:disabled {
     image: url(%(res)s/checkbox_indeterminate_dim.png);
 }
 

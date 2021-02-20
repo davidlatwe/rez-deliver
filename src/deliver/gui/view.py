@@ -10,10 +10,10 @@ from . import common, model
 #   * show package paths, and able to update package list per path
 
 
-class PackageTreeView(common.view.VerticalExtendedTreeView):
+class PackageBookTreeView(common.view.VerticalExtendedTreeView):
     def __init__(self, parent=None):
-        super(PackageTreeView, self).__init__(parent=parent)
-        self.setObjectName("PackageTreeView")
+        super(PackageBookTreeView, self).__init__(parent=parent)
+        self.setObjectName("PackageBookTreeView")
         self.setSortingEnabled(True)
         self.setAlternatingRowColors(True)
         self.sortByColumn(0, QtCore.Qt.AscendingOrder)
@@ -26,31 +26,31 @@ class PackageTreeView(common.view.VerticalExtendedTreeView):
         }
 
 
-class PackageTabBar(common.view.VerticalDocTabBar):
+class PackageBookTabBar(common.view.VerticalDocTabBar):
     def __init__(self, parent=None):
-        super(PackageTabBar, self).__init__(parent=parent)
-        self.setObjectName("PackageTabBar")
+        super(PackageBookTabBar, self).__init__(parent=parent)
+        self.setObjectName("PackageBookTabBar")
         self.setMinimumHeight(120)
 
 
-class PackageView(QtWidgets.QWidget):
+class PackageBookView(QtWidgets.QWidget):
     """Single page tab widget"""
     selected = QtCore.Signal(str, int)  # package name, variant index
 
     def __init__(self, parent=None):
-        super(PackageView, self).__init__(parent=parent)
-        self.setObjectName("PackageView")
+        super(PackageBookView, self).__init__(parent=parent)
+        self.setObjectName("PackageBookView")
 
         widgets = {
             "search": QtWidgets.QLineEdit(),
             "book": QtWidgets.QWidget(),
             "page": QtWidgets.QWidget(),
             "side": QtWidgets.QWidget(),
-            "view": PackageTreeView(),
-            "tab": PackageTabBar(),
+            "view": PackageBookTreeView(),
+            "tab": PackageBookTabBar(),
         }
-        widgets["page"].setObjectName("PackagePage")
-        widgets["side"].setObjectName("PackageSide")
+        widgets["page"].setObjectName("PackageBookPage")
+        widgets["side"].setObjectName("PackageBookSide")
 
         widgets["search"].setPlaceholderText(" Search by family or tool..")
 
@@ -95,7 +95,7 @@ class PackageView(QtWidgets.QWidget):
         self._widgets["view"].setColumnWidth(1, 120)  # date
 
     def set_model(self, model_):
-        proxy = model.PackageProxyModel()
+        proxy = model.PackageBookProxyModel()
         proxy.setSourceModel(model_)
         self._widgets["view"].setModel(proxy)
 
@@ -186,7 +186,7 @@ class PackageView(QtWidgets.QWidget):
     def on_selection_changed(self, selected, deselected):
         selected = selected.indexes()
         if selected:
-            item = selected[0].data(role=model.PackageModel.ItemRole)
+            item = selected[0].data(role=model.PackageBookModel.ItemRole)
             self.selected.emit(item.get("qualified_name", item["family"]),
                                item.get("index", -1))
         else:

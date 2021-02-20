@@ -9,7 +9,7 @@ class Window(QtWidgets.QWidget):
         super(Window, self).__init__(parent=parent)
 
         pages = {
-            "package": view.PackageView(),
+            "package": view.PackageBookView(),
             "installer": view.InstallerView(),
         }
 

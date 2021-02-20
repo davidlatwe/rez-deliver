@@ -67,7 +67,7 @@ class Controller(QtCore.QObject):
         }
 
         models_ = {
-            "package": model.PackageModel(),  # TODO: should rename to "repository"
+            "package": model.PackageBookModel(),
             "target": common.model.JsonModel(),
             "detail": common.model.JsonModel(),
         }

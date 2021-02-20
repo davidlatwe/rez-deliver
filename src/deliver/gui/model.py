@@ -5,13 +5,13 @@ from . import common
 QtCheckState = QtCore.Qt.CheckState
 
 
-class PackageItem(common.model.TreeItem):
+class PackageBookItem(common.model.TreeItem):
     def __init__(self, data=None):
-        super(PackageItem, self).__init__(data or {})
+        super(PackageBookItem, self).__init__(data or {})
         self["_isChecked"] = QtCheckState.Unchecked
 
 
-class PackageModel(common.model.AbstractTreeModel):
+class PackageBookModel(common.model.AbstractTreeModel):
     ItemRole = QtCore.Qt.UserRole + 10
     FilterRole = QtCore.Qt.UserRole + 11
     CompletionRole = QtCore.Qt.UserRole + 12
@@ -23,7 +23,7 @@ class PackageModel(common.model.AbstractTreeModel):
     ]
 
     def __init__(self, parent=None):
-        super(PackageModel, self).__init__(parent=parent)
+        super(PackageBookModel, self).__init__(parent=parent)
         self._groups = set()
 
     def name_groups(self):
@@ -58,10 +58,10 @@ class PackageModel(common.model.AbstractTreeModel):
                 "tools": ", ".join(sorted(tools)),
                 "date": item["timestamp"]
             })
-            package = PackageItem(item)
+            package = PackageBookItem(item)
 
             for index in range(item["numVariants"]):
-                variant = PackageItem(item)
+                variant = PackageBookItem(item)
                 variant["name"] += "[%d]" % index
                 variant["index"] = index
                 package.add_child(variant)
@@ -69,7 +69,7 @@ class PackageModel(common.model.AbstractTreeModel):
             if family_name not in families:
                 cover_previous_family()
 
-                family = PackageItem({
+                family = PackageBookItem({
                     "_type": "family",
                     "_group": initial,
                     "name": family_name,
@@ -161,7 +161,7 @@ class PackageModel(common.model.AbstractTreeModel):
                     self.dataChanged.emit(first, last)
                     self.dataChanged.emit(index, index)
 
-        return super(PackageModel, self).setData(index, value, role)
+        return super(PackageBookModel, self).setData(index, value, role)
 
     def flags(self, index):
         if index.column() == 0:
@@ -171,13 +171,13 @@ class PackageModel(common.model.AbstractTreeModel):
                 QtCore.Qt.ItemIsUserCheckable
             )
 
-        return super(PackageModel, self).flags(index)
+        return super(PackageBookModel, self).flags(index)
 
 
-class PackageProxyModel(QtCore.QSortFilterProxyModel):
+class PackageBookProxyModel(QtCore.QSortFilterProxyModel):
 
     def __init__(self, parent=None):
-        super(PackageProxyModel, self).__init__(parent=parent)
+        super(PackageBookProxyModel, self).__init__(parent=parent)
         self.setFilterCaseSensitivity(QtCore.Qt.CaseInsensitive)
         self.setSortCaseSensitivity(QtCore.Qt.CaseInsensitive)
-        self.setFilterRole(PackageModel.FilterRole)
+        self.setFilterRole(PackageBookModel.FilterRole)
