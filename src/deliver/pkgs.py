@@ -128,7 +128,7 @@ class DevPkgManager(object):
                         package, data = result
 
                     data["_dev_src_"] = _pkg.uri
-                    version = data.get("version", "unversioned")
+                    version = data.get("version", "_NO_VERSION")
                     versions[version] = data
 
                 yield name, versions
