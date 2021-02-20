@@ -222,6 +222,7 @@ class StringFormatView(common.view.SlimTableView):
 class InstallerView(QtWidgets.QWidget):
 
     targeted = QtCore.Signal(str)
+    installed = QtCore.Signal()
 
     # TODO:
     #   - view package details, e.g. dependencies, variants, descriptions
@@ -257,6 +258,7 @@ class InstallerView(QtWidgets.QWidget):
         layout.addWidget(widgets["install"])
 
         widgets["targets"].currentTextChanged.connect(self.targeted.emit)
+        widgets["install"].clicked.connect(self.installed.emit)
 
         self._widgets = widgets
 

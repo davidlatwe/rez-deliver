@@ -9,10 +9,13 @@ from ..config import config
 class State(dict):
 
     def __init__(self, storage):
+        dev_repo = pkgs.DevPkgManager()
+        installer = pkgs.PackageInstaller(dev_repo)
+
         super(State, self).__init__({
-            "devRepoRoot": pkgs.DevPkgManager(),
+            "devRepoRoot": dev_repo,
+            "installer": installer,
             "releaseTarget": None,
-            "releaseTemplate": None,
         })
 
         self._storage = storage
@@ -107,10 +110,6 @@ class Controller(QtCore.QObject):
 
     def defer_load_target_keys(self, name, on_time=50):
         self._state["releaseTarget"] = name
-        self._state["releaseTemplate"] = next(
-            t["template"] for t in config.release_targets if t["name"] == name
-        )
-
         timer = self._timers["targetKeysLoad"]
         timer.setSingleShot(True)
         timer.start(on_time)
@@ -144,8 +143,17 @@ class Controller(QtCore.QObject):
 
             data = package.data.copy()
             self._models["detail"].load(data)
+
+            # TODO: This should be called when package is checked
+            installer = self._state["installer"]
+            installer.resolve(name)
+
         else:
             self._models["detail"].clear()
+
+    def on_installed(self):
+        installer = self._state["installer"]
+        print(installer.manifest())
 
     def iter_dev_packages(self):
         paths = [self._state["devRepoRoot"].uri()]
