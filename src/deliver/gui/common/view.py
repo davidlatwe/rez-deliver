@@ -393,7 +393,7 @@ class RequestTextEdit(QtWidgets.QTextEdit):
         prefix = completer.splitPath(prefix)[-1]
         extra = len(completion) - len(prefix)
 
-        if extra is not 0:
+        if extra != 0:
             tc = self.textCursor()
             tc.movePosition(QtGui.QTextCursor.Left)
             tc.movePosition(QtGui.QTextCursor.EndOfWord)

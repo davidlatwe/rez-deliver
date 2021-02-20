@@ -97,15 +97,20 @@ class Controller(QtCore.QObject):
         self._models["package"].reset(self.iter_dev_packages())
 
     def on_package_selected(self, name, index):
-        package = self.find_dev_package(name)
-        is_variant = index >= 0
-        if is_variant:
-            variant = package.get_variant(index)
-            data = variant.data.copy()
-        else:
-            data = package.data.copy()
+        if name:
+            package = self.find_dev_package(name)
+            is_variant = index >= 0
+            if is_variant:
+                variant = package.get_variant(index)
+                print(variant)
+                # data = variant.data.copy()
+                data = {}
+            else:
+                data = package.data.copy()
 
-        self._models["detail"].load(data)
+            self._models["detail"].load(data)
+        else:
+            self._models["detail"].clear()
 
     def iter_dev_packages(self):
         paths = [self._state["devRepoRoot"].uri()]
