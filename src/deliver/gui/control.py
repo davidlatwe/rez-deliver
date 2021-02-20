@@ -3,7 +3,7 @@ from Qt5 import QtCore
 from rez.packages import iter_package_families, get_latest_package_from_string
 from .search.model import PackageModel
 from .common.model import JsonModel
-from ..pkgs import DevPkgRepository
+from ..pkgs import DevPkgManager
 from .. import git
 
 
@@ -11,7 +11,7 @@ class State(dict):
 
     def __init__(self, storage):
         super(State, self).__init__({
-            "devRepoRoot": DevPkgRepository(),
+            "devRepoRoot": DevPkgManager(),
         })
 
         self._storage = storage

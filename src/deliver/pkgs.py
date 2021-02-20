@@ -28,7 +28,7 @@ from .config import config
 rez_logger.setLevel(logging.WARNING)
 
 
-class DevPkgRepository(object):
+class DevPkgManager(object):
 
     LocalDirName = "packages"
     RemoteDirName = "downloads"

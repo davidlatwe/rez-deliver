@@ -47,7 +47,7 @@ def load_userconfig(fname=None):
 
 def list_developer_packages(requests):
 
-    dev_repo = pkgs.DevPkgRepository()
+    dev_repo = pkgs.DevPkgManager()
     dev_repo.reload()
 
     requests = requests or []
@@ -77,7 +77,7 @@ def list_developer_packages(requests):
 def deploy_packages(requests, target, yes=False):
     from .config import config
 
-    dev_repo = pkgs.DevPkgRepository()
+    dev_repo = pkgs.DevPkgManager()
     installer = pkgs.PackageInstaller(dev_repo)
 
     if target:
