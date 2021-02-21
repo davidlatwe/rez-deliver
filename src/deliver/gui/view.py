@@ -18,13 +18,6 @@ class PackageBookTreeView(common.view.VerticalExtendedTreeView):
         self.setAlternatingRowColors(True)
         self.sortByColumn(0, QtCore.Qt.AscendingOrder)
 
-        time_delegate = common.delegate.PrettyTimeDelegate()
-        self.setItemDelegateForColumn(1, time_delegate)
-
-        self._delegates = {
-            "date": time_delegate
-        }
-
 
 class PackageBookTabBar(common.view.VerticalDocTabBar):
     def __init__(self, parent=None):
@@ -91,8 +84,7 @@ class PackageBookView(QtWidgets.QWidget):
 
     def init_column_width(self):
         # ignore this if window geo saved
-        self._widgets["view"].setColumnWidth(0, 180)  # name
-        self._widgets["view"].setColumnWidth(1, 120)  # date
+        self._widgets["view"].setColumnWidth(0, 380)  # name
 
     def set_model(self, model_):
         proxy = model.PackageBookProxyModel()

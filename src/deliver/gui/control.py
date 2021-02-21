@@ -176,7 +176,6 @@ class Controller(QtCore.QObject):
                     "uri": package.uri,
                     "tools": package.tools or [],
                     "qualified_name": qualified_name,
-                    "timestamp": package.timestamp,
                     "locations": [path],
                     "numVariants": package.num_variants,
                 }

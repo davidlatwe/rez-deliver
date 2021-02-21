@@ -18,7 +18,6 @@ class PackageBookModel(common.model.AbstractTreeModel):
     CompletionColumn = 0
     Headers = [
         "name",
-        "date",
         "tools",
     ]
 
@@ -42,8 +41,6 @@ class PackageBookModel(common.model.AbstractTreeModel):
         def cover_previous_family():
             if family:
                 family["tools"] = ", ".join(sorted(family["tools"]))
-                family["timestamp"] = sorted(family["timestamp"])[-1]
-                family["date"] = family["timestamp"]
 
         for item in sorted(items or [], key=lambda i: i["family"].lower()):
             family_name = item["family"]
@@ -56,7 +53,6 @@ class PackageBookModel(common.model.AbstractTreeModel):
                 "name": item["qualified_name"],
                 "family": family_name,
                 "tools": ", ".join(sorted(tools)),
-                "date": item["timestamp"]
             })
             package = PackageBookItem(item)
 
@@ -76,7 +72,6 @@ class PackageBookModel(common.model.AbstractTreeModel):
                     "family": family_name,
                     "version": "",
                     "tools": set(),  # later be formatted from all versions
-                    "timestamp": set(),  # later be sorted and get latest
                 })
 
                 families.add(family_name)
@@ -84,7 +79,6 @@ class PackageBookModel(common.model.AbstractTreeModel):
                 self.add_child(family)
 
             family["tools"].update(tools)
-            family["timestamp"].add(package["timestamp"])
             family.add_child(package)
 
         cover_previous_family()
