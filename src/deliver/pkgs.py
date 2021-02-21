@@ -79,7 +79,7 @@ class DevPkgManager(object):
     def iter_bind_packages(self):
         for name, maker in self.binds.items():
             data = maker().data.copy()
-            data["_dev_src_"] = "_bind_"
+            data["_DEV_SRC"] = "_REZ_BIND"
             yield name, {data["version"]: data}
 
     def iter_dev_packages(self):
@@ -127,7 +127,9 @@ class DevPkgManager(object):
                     if result:
                         package, data = result
 
-                    data["_dev_src_"] = _pkg.uri
+                    if data.get("_DEV_SRC") != "_REZ_BIND":
+                        data["_DEV_SRC"] = _pkg.uri
+
                     version = data.get("version", "_NO_VERSION")
                     versions[version] = data
 
@@ -227,7 +229,7 @@ class PackageInstaller(object):
         else:
             name = develop.qualified_name
             variants = develop.iter_variants()
-            source = develop.data["_dev_src_"]
+            source = develop.data["_DEV_SRC"]
 
         if package is None:
             pkg_variants_req = []
