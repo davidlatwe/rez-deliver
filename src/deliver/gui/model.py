@@ -10,6 +10,9 @@ class PackageBookItem(common.model.TreeItem):
         super(PackageBookItem, self).__init__(data or {})
         self["_isChecked"] = QtCheckState.Unchecked
 
+    def is_variant(self):
+        return "index" in self.keys()
+
 
 class PackageBookModel(common.model.AbstractTreeModel):
     ItemRole = QtCore.Qt.UserRole + 10
@@ -109,7 +112,8 @@ class PackageBookModel(common.model.AbstractTreeModel):
                 return QtGui.QColor("gray")
 
         if role == QtCore.Qt.CheckStateRole:
-            if index.column() == 0:
+            if index.column() == 0 and index.parent().isValid():
+                # only versions and variants are checkable
                 item = index.internalPointer()
                 return item["_isChecked"]
 
@@ -123,42 +127,51 @@ class PackageBookModel(common.model.AbstractTreeModel):
 
     def setData(self, index, value, role=QtCore.Qt.EditRole):
         if role == QtCore.Qt.CheckStateRole:
-            if index.column() == 0:
+            if index.column() == 0 and index.parent().isValid():
+                # only versions and variants are checkable
+
                 parent = index.parent()
                 item = index.internalPointer()
                 item["_isChecked"] = value
 
-                if parent.isValid():
-                    # Was ticking on version, update version and family
-                    family = parent.internalPointer()
-                    versions = family.children()
+                if item.is_variant():
+                    # Was ticking on variant, update variant and version
+                    version = parent.internalPointer()
+                    variants = version.children()
 
-                    if any(v["_isChecked"] == QtCheckState.Checked
-                           for v in versions):
-                        family["_isChecked"] = QtCheckState.PartiallyChecked
+                    unchecked_count = sum(
+                        v["_isChecked"] == QtCheckState.Unchecked
+                        for v in variants
+                    )
+
+                    if unchecked_count == 0:
+                        version["_isChecked"] = QtCheckState.Checked
+                    elif unchecked_count == len(variants):
+                        version["_isChecked"] = QtCheckState.Unchecked
                     else:
-                        family["_isChecked"] = QtCheckState.Unchecked
+                        version["_isChecked"] = QtCheckState.PartiallyChecked
 
                     self.dataChanged.emit(index, index)
                     self.dataChanged.emit(parent, parent)
 
                 else:
-                    # Was ticking on family, means *any* version
-                    versions = item.children()
+                    # Was ticking on version, update version and all variants
+                    variants = item.children()
 
-                    # un-tick all versions
-                    for version in versions:
-                        version["_isChecked"] = QtCheckState.Unchecked
+                    for variant in variants:
+                        variant["_isChecked"] = value
 
-                    first = index.child(0, 0)
-                    last = index.child(len(versions) - 1, 0)
-                    self.dataChanged.emit(first, last)
+                    if len(variants):
+                        first = index.child(0, 0)
+                        last = index.child(len(variants) - 1, 0)
+                        self.dataChanged.emit(first, last)
                     self.dataChanged.emit(index, index)
 
         return super(PackageBookModel, self).setData(index, value, role)
 
     def flags(self, index):
-        if index.column() == 0:
+        if index.column() == 0 and index.parent().isValid():
+            # only versions and variants are checkable
             return (
                 QtCore.Qt.ItemIsEnabled |
                 QtCore.Qt.ItemIsSelectable |
