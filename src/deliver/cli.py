@@ -82,7 +82,7 @@ def deploy_packages(requests, target, yes=False):
 
     if target:
         if target is True:
-            target = config.release_targets[-1]["name"]
+            target = config.release_targets[0]["name"]
 
         kwargs = dict()
         for key in config.list_target_required_keys(target):

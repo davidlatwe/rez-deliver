@@ -12,7 +12,7 @@ with open(__os.path.expanduser("~/github.token"), "r") as f:
 def release_targets():
     """Rez package release destinations
 
-    A list of dict that used to format package release path, the last in
+    A list of dict that used to format package release path, the **first** in
     list is the default release target.
 
     {
@@ -33,9 +33,9 @@ def release_targets():
 
     return [
         {
-            "name": "user",
-            "description": "user beta",
-            "template": "T:/rez-studio/packages/1/beta-user/{user}",
+            "name": "site",
+            "description": "site-wide release",
+            "template": "T:/rez-studio/packages/1/release",
         },
         {
             "name": "dept",
@@ -43,9 +43,9 @@ def release_targets():
             "template": "T:/rez-studio/packages/1/beta-dept/{department}",
         },
         {
-            "name": "site",
-            "description": "site-wide release",
-            "template": "T:/rez-studio/packages/1/release",
+            "name": "user",
+            "description": "user beta",
+            "template": "T:/rez-studio/packages/1/beta-user/{user}",
         },
     ]
 
