@@ -35,6 +35,26 @@ class PackageBookModel(common.model.AbstractTreeModel):
         for item in self.root.children():
             yield item
 
+    def iter_requests(self):
+        for family in self.root.children():
+            for version in family.children():
+                if version["_isChecked"] == QtCheckState.Unchecked:
+                    continue
+
+                if version["numVariants"]:
+                    states = [v["_isChecked"] for v in version.children()]
+
+                    if all(s == QtCheckState.Checked for s in states):
+                        yield version["name"], None
+
+                    else:
+                        for index, s in enumerate(states):
+                            if s == QtCheckState.Checked:
+                                yield version["name"], index
+
+                else:
+                    yield version["name"], None
+
     def reset(self, items=None):
         self.beginResetModel()
         self._groups.clear()

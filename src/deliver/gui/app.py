@@ -31,6 +31,7 @@ class Window(QtWidgets.QWidget):
         ctrl.models["pathKeys"].formatted.connect(self.on_target_formatted)
         pages["pkgBook"].selected.connect(self.on_package_selected)
         pages["install"].targeted.connect(ctrl.defer_load_target_keys)
+        pages["install"].manifested.connect(ctrl.on_manifested)
         pages["install"].installed.connect(ctrl.on_installed)
 
         self._ctrl = ctrl

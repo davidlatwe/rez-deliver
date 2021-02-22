@@ -131,15 +131,19 @@ class Controller(QtCore.QObject):
 
         self._models["pathKeys"].formatted.emit()
 
-    def on_package_selected(self, name, index=-1):
-        # TODO: This should be called when package is checked
-        # installer = self._state["installer"]
-        # installer.resolve(name)
-        pass
+    def on_manifested(self):
+        installer = self._state["installer"]
+        installer.reset()
+
+        for name, index in self._models["pkgBook"].iter_requests():
+            installer.resolve(name, index)
+
+        for m in installer.manifest():
+            print(m)
 
     def on_installed(self):
         installer = self._state["installer"]
-        print(installer.manifest())
+        installer.run()
 
     def iter_dev_packages(self):
         paths = [self._state["devRepoRoot"].uri()]

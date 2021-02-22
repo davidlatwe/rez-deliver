@@ -296,24 +296,36 @@ class PackageInstaller(object):
             # installed
             return
 
+        install_path = self._install_path()
+        if not os.path.isdir(install_path):
+            os.makedirs(install_path)
+
         if self.release:
-            subprocess.check_call(["rez-bind", "--release", name])
+            env = os.environ.copy()
+            env["REZ_RELEASE_PACKAGES_PATH"] = install_path
+            subprocess.check_call(["rez-bind", "--release", name], env=env)
         else:
             subprocess.check_call(["rez-bind", name])
 
-        clear_repo_cache(self._install_path())
+        clear_repo_cache(install_path)
 
     def _build(self, path, variant=None):
         variant_cmd = [] if variant is None else ["--variants", str(variant)]
 
+        install_path = self._install_path()
+        if not os.path.isdir(install_path):
+            os.makedirs(install_path)
+
         if self.release:
+            env = os.environ.copy()
+            env["REZ_RELEASE_PACKAGES_PATH"] = install_path
             args = ["rez-release"] + variant_cmd
-            subprocess.check_call(args, cwd=path)
+            subprocess.check_call(args, cwd=path, env=env)
         else:
             args = ["rez-build", "--install"] + variant_cmd
             subprocess.check_call(args, cwd=path)
 
-        clear_repo_cache(self._install_path())
+        clear_repo_cache(install_path)
 
     def _package_paths(self):
         if self.release:

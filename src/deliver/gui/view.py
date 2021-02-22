@@ -238,6 +238,7 @@ class StringFormatView(common.view.SlimTableView):
 class InstallerView(QtWidgets.QWidget):
 
     targeted = QtCore.Signal(str)
+    manifested = QtCore.Signal()
     installed = QtCore.Signal()
 
     # TODO:
@@ -258,6 +259,7 @@ class InstallerView(QtWidgets.QWidget):
             "targets": QtWidgets.QComboBox(),
             "keys": StringFormatView(),
             "path": QtWidgets.QLineEdit(),
+            "manifest": QtWidgets.QPushButton("Manifest"),
             "install": QtWidgets.QPushButton("Install"),
         }
 
@@ -269,9 +271,11 @@ class InstallerView(QtWidgets.QWidget):
         layout.addWidget(widgets["targets"])
         layout.addWidget(widgets["path"])
         layout.addWidget(widgets["keys"])
+        layout.addWidget(widgets["manifest"])
         layout.addWidget(widgets["install"])
 
         widgets["targets"].currentTextChanged.connect(self.targeted.emit)
+        widgets["manifest"].clicked.connect(self.manifested.emit)
         widgets["install"].clicked.connect(self.installed.emit)
 
         self._widgets = widgets
