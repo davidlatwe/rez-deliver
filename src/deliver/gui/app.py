@@ -10,31 +10,40 @@ class Window(QtWidgets.QWidget):
 
         pages = {
             "pkgBook": view.PackageBookView(),
-            "installer": view.InstallerView(),
+            "actions": QtWidgets.QTabWidget(),
+            "pkgInfo": view.PackageDataView(),
+            "install": view.InstallerView(),
         }
+
+        pages["actions"].addTab(pages["pkgInfo"], "Package")
+        pages["actions"].addTab(pages["install"], "Install")
 
         layout = QtWidgets.QHBoxLayout(self)
         layout.addWidget(pages["pkgBook"])
-        layout.addWidget(pages["installer"])
+        layout.addWidget(pages["actions"])
 
         # setup
         pages["pkgBook"].set_model(ctrl.models["pkgBook"])
-        pages["installer"].set_model(ctrl.models["detail"],
-                                     ctrl.models["targets"],
-                                     ctrl.models["pathKeys"])
+        pages["install"].set_model(ctrl.models["targets"],
+                                   ctrl.models["pathKeys"])
 
         # signals
         ctrl.models["pathKeys"].formatted.connect(self.on_target_formatted)
-        pages["pkgBook"].selected.connect(ctrl.on_package_selected)
-        pages["installer"].targeted.connect(ctrl.defer_load_target_keys)
-        pages["installer"].installed.connect(ctrl.on_installed)
+        pages["pkgBook"].selected.connect(self.on_package_selected)
+        pages["install"].targeted.connect(ctrl.defer_load_target_keys)
+        pages["install"].installed.connect(ctrl.on_installed)
 
         self._ctrl = ctrl
         self._pages = pages
+
+    def on_package_selected(self, pkg_name, variant_index):
+        is_variant = variant_index >= 0
+        package = self._ctrl.find_dev_package(pkg_name)
+        self._pages["pkgInfo"].parse_package(package, is_variant)
 
     def on_target_formatted(self):
         installer = self._ctrl.state["installer"]
         target = self._ctrl.state["releaseTarget"]
         kwargs = self._ctrl.models["pathKeys"].kwargs()
         path = installer.target(release=True, name=target, **kwargs)
-        self._pages["installer"].set_path(path)
+        self._pages["install"].set_path(path)

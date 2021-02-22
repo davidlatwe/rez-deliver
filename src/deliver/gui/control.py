@@ -75,11 +75,9 @@ class Controller(QtCore.QObject):
 
         models_ = {
             "pkgBook": model.PackageBookModel(),
-            "pkgData": common.model.JsonModel(),
             "pkgDep": None,
             "targets": QtCore.QStringListModel(),
             "pathKeys": model.StringFormatModel(),
-            "detail": common.model.JsonModel(),
         }
 
         timers["packageSearch"].timeout.connect(self.on_package_searched)
@@ -133,23 +131,11 @@ class Controller(QtCore.QObject):
 
         self._models["pathKeys"].formatted.emit()
 
-    def on_package_selected(self, name, index):
-        if name:
-            package = self.find_dev_package(name)
-            # is_variant = index >= 0
-            #
-            # if is_variant:
-            #     variant = package.get_variant(index)
-
-            data = package.data.copy()
-            self._models["detail"].load(data)
-
-            # TODO: This should be called when package is checked
-            installer = self._state["installer"]
-            installer.resolve(name)
-
-        else:
-            self._models["detail"].clear()
+    def on_package_selected(self, name, index=-1):
+        # TODO: This should be called when package is checked
+        # installer = self._state["installer"]
+        # installer.resolve(name)
+        pass
 
     def on_installed(self):
         installer = self._state["installer"]

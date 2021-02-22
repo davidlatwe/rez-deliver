@@ -190,19 +190,43 @@ class PackageDependencyView(QtWidgets.QWidget):
 
 
 class PackageDataView(QtWidgets.QWidget):
-    # Package
-    # - Name:
-    # - Version:
-    # - Description:
-    # - Variants:
-    # - Dependencies:
 
     def __init__(self, parent=None):
         super(PackageDataView, self).__init__(parent=parent)
 
+        # panels = {
+        #     "data": QtWidgets.QWidget(),  # name, version, desc...
+        #     "variants": None,
+        #     "dependencies": None,  # (build context resolved pkgs)
+        # }
+
         widgets = {
-            "name": QtWidgets.QLabel(),
+            "name": QtWidgets.QLineEdit(),
+            "version": QtWidgets.QLineEdit(),
+            "description": QtWidgets.QTextEdit(),
         }
+
+        widgets["name"].setReadOnly(True)
+        widgets["version"].setReadOnly(True)
+        widgets["description"].setReadOnly(True)
+        widgets["description"].setMaximumHeight(120)
+
+        layout = QtWidgets.QFormLayout(self)
+        layout.setLabelAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignCenter)
+        layout.setContentsMargins(4, 4, 4, 4)
+        layout.setSpacing(2)
+        layout.addRow("Name:", widgets["name"])
+        layout.addRow("Version:", widgets["version"])
+        layout.addRow("Description:", widgets["description"])
+        layout.addRow("", QtWidgets.QLabel())  # stretch
+
+        self._widgets = widgets
+
+    def parse_package(self, package, is_variant):
+        data = package.data
+        self._widgets["name"].setText(data["name"])
+        self._widgets["version"].setText(data.get("version", ""))
+        self._widgets["description"].setText(data.get("description", ""))
 
 
 class StringFormatView(common.view.SlimTableView):
@@ -231,7 +255,6 @@ class InstallerView(QtWidgets.QWidget):
         super(InstallerView, self).__init__(parent=parent)
 
         widgets = {
-            "detail": common.view.JsonView(),
             "targets": QtWidgets.QComboBox(),
             "keys": StringFormatView(),
             "path": QtWidgets.QLineEdit(),
@@ -246,7 +269,6 @@ class InstallerView(QtWidgets.QWidget):
         layout.addWidget(widgets["targets"])
         layout.addWidget(widgets["path"])
         layout.addWidget(widgets["keys"])
-        layout.addWidget(widgets["detail"])
         layout.addWidget(widgets["install"])
 
         widgets["targets"].currentTextChanged.connect(self.targeted.emit)
@@ -254,8 +276,7 @@ class InstallerView(QtWidgets.QWidget):
 
         self._widgets = widgets
 
-    def set_model(self, model_d, model_t, model_k):
-        self._widgets["detail"].setModel(model_d)
+    def set_model(self, model_t, model_k):
         self._widgets["targets"].setModel(model_t)
         self._widgets["keys"].setModel(model_k)
 
