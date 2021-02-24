@@ -1,9 +1,9 @@
 
 from rez.packages import iter_package_families, get_latest_package_from_string
+from rez.config import config as rezconfig
 from .vendor.Qt5 import QtCore
-from . import model, common
+from . import model
 from .. import pkgs
-from ..config import config
 
 
 class State(dict):
@@ -15,7 +15,7 @@ class State(dict):
         super(State, self).__init__({
             "devRepoRoot": dev_repo,
             "installer": installer,
-            "releaseTarget": None,
+            "deployPaths": rezconfig.packages_path[:],
         })
 
         self._storage = storage
@@ -69,20 +69,16 @@ class Controller(QtCore.QObject):
 
         timers = {
             "packageSearch": QtCore.QTimer(self),
-            "targetsLoad": QtCore.QTimer(self),
-            "targetKeysLoad": QtCore.QTimer(self),
         }
 
         models_ = {
             "pkgBook": model.PackageBookModel(),
             "pkgDep": None,
-            "targets": QtCore.QStringListModel(),
-            "pathKeys": model.StringFormatModel(),
+            "pkgPaths": QtCore.QStringListModel(state["deployPaths"]),
+            "pkgMan": None
         }
 
         timers["packageSearch"].timeout.connect(self.on_package_searched)
-        timers["targetsLoad"].timeout.connect(self.on_target_loaded)
-        timers["targetKeysLoad"].timeout.connect(self.on_target_keys_loaded)
 
         self._state = state
         self._timers = timers
@@ -101,35 +97,14 @@ class Controller(QtCore.QObject):
         timer.setSingleShot(True)
         timer.start(on_time)
 
-    def defer_load_targets(self, on_time=50):
-        timer = self._timers["targetsLoad"]
-        timer.setSingleShot(True)
-        timer.start(on_time)
-
-    def defer_load_target_keys(self, name, on_time=50):
-        self._state["releaseTarget"] = name
-        timer = self._timers["targetKeysLoad"]
-        timer.setSingleShot(True)
-        timer.start(on_time)
-
     def on_package_searched(self):
         self._state["devRepoRoot"].reload()
         self._models["pkgBook"].reset(self.iter_dev_packages())
 
-    def on_target_loaded(self):
-        targets = [t["name"] for t in config.release_targets]
-        self._models["targets"].setStringList(targets)
-
-    def on_target_keys_loaded(self):
-        target = self._state["releaseTarget"]
-        param = config.release_target_param
-
-        self._models["pathKeys"].load({
-            key: param[key]
-            for key in config.list_target_required_keys(target)
-        })
-
-        self._models["pathKeys"].formatted.emit()
+    def on_target_changed(self, path):
+        installer = self._state["installer"]
+        installer.target(path)
+        # self._models["pkgMan"].clear()
 
     def on_manifested(self):
         installer = self._state["installer"]
@@ -140,6 +115,7 @@ class Controller(QtCore.QObject):
 
         for m in installer.manifest():
             print(m)
+        # self._models["pkgMan"].load(installer.manifest())
 
     def on_installed(self):
         installer = self._state["installer"]

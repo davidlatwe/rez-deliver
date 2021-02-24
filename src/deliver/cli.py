@@ -3,6 +3,7 @@ import os
 import argparse
 from rez.packages import iter_package_families
 from rez.packages import get_latest_package_from_string
+from rez.config import config as rezconfig
 from . import pkgs
 
 
@@ -74,35 +75,13 @@ def list_developer_packages(requests):
                 print(package.qualified_name)
 
 
-def deploy_packages(requests, target, yes=False):
-    from .config import config
+def deploy_packages(requests, path, yes=False):
 
     dev_repo = pkgs.DevPkgManager()
-    installer = pkgs.PackageInstaller(dev_repo)
-
-    if target:
-        if target is True:
-            target = config.release_targets[0]["name"]
-
-        kwargs = dict()
-        for key in config.list_target_required_keys(target):
-            value = input_release_param(key)
-            if not value:
-                print("Cancelled")
-                return
-
-            kwargs[key] = value
-
-        try:
-            path = installer.target(release=True, name=target, **kwargs)
-        except ValueError as e:
-            print(str(e))
-            return
-        else:
-            print("\nPackages will be released to:")
-            print(path)
-
     dev_repo.reload()
+
+    installer = pkgs.PackageInstaller(dev_repo)
+    installer.target(path)
 
     # variant specification isn't support in CLI mode
     for req in requests:
@@ -135,19 +114,6 @@ except NameError:
     _input = input
 
 
-def input_release_param(key):
-    msg = " %s: " % key
-    try:
-        value = _input(msg).rstrip()
-        if not value:
-            value = input_release_param(key)
-        return value
-    except EOFError:
-        return input_release_param(key)  # On just hitting enter
-    except KeyboardInterrupt:
-        return None
-
-
 def confirm(msg):
     try:
         reply = _input(msg).lower().rstrip()
@@ -165,15 +131,18 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("packages", nargs="*",
                         help="Package names to deploy.")
-    # TODO: instead of passing bool, change to pass deliver target name.
-    parser.add_argument("-r", "--release", nargs="?",
+    parser.add_argument("-r", "--release", action="store_true",
+                        help="Deploy package as release.")
+    parser.add_argument("-i", "--install", nargs="?",
                         const=True, default=False,
-                        help="The name of package releasing target.")
-    parser.add_argument("-y", "--yes", action="store_true",
-                        help="Yes to all.")
+                        help="Deploy package as install. Packages will be "
+                             "installed to a custom path if path given, or "
+                             "to Rez local_packages_path by default.")
     parser.add_argument("-l", "--list", action="store_true",
                         help="List out packages that can be deployed. If "
                              "`packages` given, versions will be listed.")
+    parser.add_argument("-y", "--yes", action="store_true",
+                        help="Yes to all.")
 
     opt = parser.parse_args()
 
@@ -187,7 +156,26 @@ def main():
         return
 
     if opt.packages:
-        if deploy_packages(opt.packages, opt.release, opt.yes):
+
+        if opt.release and opt.install:
+            print("Cannot set both --release and --install flags.")
+            return
+
+        if not opt.release and not opt.install:
+            print("Must pick one deploy option --release or --install.")
+            return
+
+        if opt.install:
+            if isinstance(opt.install, bool):
+                path = rezconfig.local_packages_path
+            else:
+                path = opt.install
+        elif opt.release:
+            path = rezconfig.release_packages_path
+        else:
+            raise Exception("Undefined behavior.")
+
+        if deploy_packages(opt.packages, path, opt.yes):
             print("=" * 30)
             print("SUCCESS!\n")
 

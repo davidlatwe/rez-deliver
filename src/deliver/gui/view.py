@@ -229,48 +229,23 @@ class PackageDataView(QtWidgets.QWidget):
         self._widgets["description"].setText(data.get("description", ""))
 
 
-class StringFormatView(common.view.SlimTableView):
-
-    def __init__(self, parent=None):
-        super(StringFormatView, self).__init__(parent=parent)
-
-
 class InstallerView(QtWidgets.QWidget):
 
     targeted = QtCore.Signal(str)
     manifested = QtCore.Signal()
     installed = QtCore.Signal()
 
-    # TODO:
-    #   - view package details, e.g. dependencies, variants, descriptions
-    #   - release target selector
-    #   - deploy buttons, log
-
-    # Release
-    # - Target:
-    # - Keys:
-    # - Path:
-    # - Manifest:
-
     def __init__(self, parent=None):
         super(InstallerView, self).__init__(parent=parent)
 
         widgets = {
             "targets": QtWidgets.QComboBox(),
-            "keys": StringFormatView(),
-            "path": QtWidgets.QLineEdit(),
             "manifest": QtWidgets.QPushButton("Manifest"),
             "install": QtWidgets.QPushButton("Install"),
         }
 
-        widgets["keys"].setItemDelegateForColumn(
-            1, delegate.StringFormatValueDelegate()
-        )
-
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(widgets["targets"])
-        layout.addWidget(widgets["path"])
-        layout.addWidget(widgets["keys"])
         layout.addWidget(widgets["manifest"])
         layout.addWidget(widgets["install"])
 
@@ -280,9 +255,8 @@ class InstallerView(QtWidgets.QWidget):
 
         self._widgets = widgets
 
-    def set_model(self, model_t, model_k):
-        self._widgets["targets"].setModel(model_t)
-        self._widgets["keys"].setModel(model_k)
+    def init(self):
+        self.targeted.emit(self._widgets["targets"].currentText())
 
-    def set_path(self, path):
-        self._widgets["path"].setText(path)
+    def set_model(self, model_):
+        self._widgets["targets"].setModel(model_)

@@ -37,6 +37,5 @@ def main():
     window.show()
 
     ctrl.defer_search_packages(on_time=200)
-    ctrl.defer_load_targets(on_time=100)
 
     return qapp.exec_()

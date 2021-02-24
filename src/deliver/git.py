@@ -3,10 +3,10 @@ import os
 import subprocess
 from datetime import datetime
 from github import Github  # PyGithub, requests==2.24.0
-from .config import config
+from . import deliverconfig
 
 
-g = Github(config.github_token)
+g = Github(deliverconfig.github_token)
 
 
 def clone(url, dst, branch=None, single_branch=True):

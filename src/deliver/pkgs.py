@@ -2,6 +2,7 @@
 import os
 import json
 import logging
+import functools
 import subprocess
 import contextlib
 from collections import OrderedDict
@@ -20,12 +21,23 @@ from rez.utils.logging_ import logger as rez_logger
 from rez.packages import get_latest_package_from_string
 from rez.package_repository import package_repository_manager
 
-from . import git
-from .config import config
+from . import git, deliverconfig
 
 
 # silencing rez logger, e.g. on package preprocessing
 rez_logger.setLevel(logging.WARNING)
+
+
+def expand_path(path):
+    path = functools.reduce(
+        lambda _p, f: f(_p),
+        [path,
+         os.path.expanduser,
+         os.path.expandvars,
+         os.path.normpath]
+    )
+
+    return path
 
 
 class DevPkgManager(object):
@@ -35,7 +47,7 @@ class DevPkgManager(object):
     ExternalsName = "ext-packages.json"
 
     def __init__(self, root=None):
-        root = root or config.dev_repository_root
+        root = expand_path(root or deliverconfig.dev_repository_root)
 
         dev_package_paths = [
             os.path.join(root, self.LocalDirName),
@@ -88,6 +100,7 @@ class DevPkgManager(object):
             for p in fam.iter_packages():
                 github_repo = p.data.get("github_repo")
                 if github_repo:
+                    yield p
                     for ver_tag in git.get_released_tags(github_repo):
                         os.environ["GITHUB_REZ_PKG_PAYLOAD_VER"] = ver_tag
                         yield p
@@ -165,36 +178,40 @@ class DevPkgManager(object):
 class PackageInstaller(object):
 
     def __init__(self, dev_repo, rezsrc=None):
+        rezsrc = expand_path(rezsrc or deliverconfig.rez_source_path)
+
         self.release = False
         self.dev_repo = dev_repo
-        self.rezsrc_path = rezsrc or config.rez_source_path
+        self.rezsrc_path = rezsrc
         self._requirements = OrderedDict()
-        self._target_name = None
-        self._target_args = dict()
+        self._package_paths = []
+        self._deploy_path = None
+
+    def target(self, path):
+        """
+        Only set to 'release' when the `path` is release_packages_path.
+        """
+        path = expand_path(path)
+        release = path == expand_path(rezconfig.release_packages_path)
+
+        print("Mode: %s" % ("release" if release else "install"))
+
+        self.release = release
+        self._deploy_path = path or (
+            rezconfig.release_packages_path if release
+            else rezconfig.local_packages_path
+        )
+        self._package_paths = (
+            rezconfig.nonlocal_packages_path[:] if release
+            else rezconfig.packages_path[:]
+        )
+        self.reset()
 
     def reset(self):
         self._requirements.clear()
 
     def manifest(self):
         return self._requirements.copy()
-
-    def target(self, release, name=None, **kwargs):
-        self.release = release
-        self._target_name = name
-        self._target_args = kwargs
-
-        # validate keyword value
-        for k, v in kwargs.items():
-            # TODO: each value of `release_target_param` is a string pair that
-            #  the first is used in filesystem path, and the other is used as
-            #  pretty name in GUI.
-            values = [v_[0] for v_ in config.release_target_param[k]]
-
-            if v not in values:
-                raise ValueError("Unable to format target %r: "
-                                 "%r is not valid for key %r" % (name, v, k))
-
-        return self._install_path()
 
     def run(self):
         for (q_name, v_index), (exists, src) in self._requirements.items():
@@ -254,27 +271,27 @@ class PackageInstaller(object):
         """Use Rez's install script to deploy rez as package
         """
         rezsrc = self.rezsrc_path
-        install_path = self._install_path()
+        deploy_path = self._deploy_path
 
         rez_install = os.path.join(os.path.abspath(rezsrc), "install.py")
         dev_pkg = self._get_develop_pkg_from_str("rez")
 
         print("Installing Rez as package..")
 
-        clear_repo_cache(install_path)
+        clear_repo_cache(deploy_path)
 
         for variant in dev_pkg.iter_variants():
             print("Variant: ", variant)
 
             context = self._get_build_context(variant)
             context.execute_shell(
-                command=["python", rez_install, "-v", "-p", install_path],
+                command=["python", rez_install, "-v", "-p", deploy_path],
                 block=True,
                 cwd=rezsrc,
             )
 
     def _get_installed_pkg_from_str(self, name):
-        paths = self._package_paths()
+        paths = self._package_paths
         return get_latest_package_from_string(name, paths=paths)
 
     def _get_develop_pkg_from_str(self, name):
@@ -282,7 +299,7 @@ class PackageInstaller(object):
         return get_latest_package_from_string(name, paths=paths)
 
     def _get_build_context(self, variant):
-        paths = self._package_paths() + [self.dev_repo.uri()]
+        paths = self._package_paths + [self.dev_repo.uri()]
         implicit_pkgs = list(map(PackageRequest, rezconfig.implicit_packages))
         pkg_requests = variant.get_requires(build_requires=True,
                                             private_build_requires=True)
@@ -296,61 +313,39 @@ class PackageInstaller(object):
             # installed
             return
 
-        install_path = self._install_path()
-        if not os.path.isdir(install_path):
-            os.makedirs(install_path)
+        deploy_path = self._deploy_path
+        env = os.environ.copy()
+
+        if not os.path.isdir(deploy_path):
+            os.makedirs(deploy_path)
 
         if self.release:
-            env = os.environ.copy()
-            env["REZ_RELEASE_PACKAGES_PATH"] = install_path
+            env["REZ_RELEASE_PACKAGES_PATH"] = deploy_path
             subprocess.check_call(["rez-bind", "--release", name], env=env)
         else:
+            env["REZ_LOCAL_PACKAGES_PATH"] = deploy_path
             subprocess.check_call(["rez-bind", name])
 
-        clear_repo_cache(install_path)
+        clear_repo_cache(deploy_path)
 
-    def _build(self, path, variant=None):
+    def _build(self, src_dir, variant=None):
         variant_cmd = [] if variant is None else ["--variants", str(variant)]
+        deploy_path = self._deploy_path
+        env = os.environ.copy()
 
-        install_path = self._install_path()
-        if not os.path.isdir(install_path):
-            os.makedirs(install_path)
+        if not os.path.isdir(deploy_path):
+            os.makedirs(deploy_path)
 
         if self.release:
-            env = os.environ.copy()
-            env["REZ_RELEASE_PACKAGES_PATH"] = install_path
+            env["REZ_RELEASE_PACKAGES_PATH"] = deploy_path
             args = ["rez-release"] + variant_cmd
-            subprocess.check_call(args, cwd=path, env=env)
+            subprocess.check_call(args, cwd=src_dir, env=env)
         else:
+            env["REZ_LOCAL_PACKAGES_PATH"] = deploy_path
             args = ["rez-build", "--install"] + variant_cmd
-            subprocess.check_call(args, cwd=path)
+            subprocess.check_call(args, cwd=src_dir)
 
-        clear_repo_cache(install_path)
-
-    def _package_paths(self):
-        if self.release:
-            return rezconfig.nonlocal_packages_path[:]
-        else:
-            return rezconfig.packages_path[:]
-
-    def _install_path(self):
-        if self.release:
-            return format_release_target(self._target_name, self._target_args)
-        else:
-            return rezconfig.local_packages_path
-
-
-def format_release_target(name, values):
-    for target in config.release_targets:
-        if target["name"] != name:
-            continue
-
-        path = target["template"]
-        path = path.format(**values)
-
-        return path
-    else:
-        raise RuntimeError("Unknown release target: %s" % name)
+        clear_repo_cache(deploy_path)
 
 
 @contextlib.contextmanager
