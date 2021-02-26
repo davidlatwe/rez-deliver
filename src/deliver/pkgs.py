@@ -1,12 +1,10 @@
 
 import os
-import json
 import logging
 import functools
 import subprocess
 import contextlib
 from collections import OrderedDict
-from itertools import chain
 
 from rez.config import config as rezconfig
 from rez.system import system
@@ -202,10 +200,6 @@ class DevRepoManager(object):
     def iter_package_families(self):
         for family in iter_package_families(paths=self.paths):
             yield family
-
-
-class DevPkgManager(object):
-    pass  # Deprecated
 
 
 class PackageInstaller(object):
