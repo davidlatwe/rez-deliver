@@ -48,14 +48,14 @@ def load_userconfig(fname=None):
 
 def list_developer_packages(requests):
 
-    dev_repo = pkgs.DevPkgManager()
-    dev_repo.reload()
+    dev_repo = pkgs.DevRepoManager()
+    dev_repo.load()
 
     requests = requests or []
 
     names = list()
     for request in requests:
-        pkg = get_latest_package_from_string(request, paths=[dev_repo.uri()])
+        pkg = dev_repo.find(request)
         if pkg is None:
             print("Package not found in this repository: %s" % request)
             continue
@@ -64,7 +64,7 @@ def list_developer_packages(requests):
     print("\nPackages available in this repository:")
     print("=" * 30)
 
-    for family in iter_package_families(paths=[dev_repo.uri()]):
+    for family in dev_repo.iter_package_families():
         if not requests:
             print(family.name)
         else:
@@ -77,8 +77,8 @@ def list_developer_packages(requests):
 
 def deploy_packages(requests, path, yes=False):
 
-    dev_repo = pkgs.DevPkgManager()
-    dev_repo.reload()
+    dev_repo = pkgs.DevRepoManager()
+    dev_repo.load()
 
     installer = pkgs.PackageInstaller(dev_repo)
     installer.target(path)

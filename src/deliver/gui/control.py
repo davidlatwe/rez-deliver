@@ -1,5 +1,4 @@
 
-from rez.packages import iter_package_families, get_latest_package_from_string
 from rez.config import config as rezconfig
 from .vendor.Qt5 import QtCore
 from . import model
@@ -9,7 +8,7 @@ from .. import pkgs
 class State(dict):
 
     def __init__(self, storage):
-        dev_repo = pkgs.DevPkgManager()
+        dev_repo = pkgs.DevRepoManager()
         installer = pkgs.PackageInstaller(dev_repo)
 
         super(State, self).__init__({
@@ -98,7 +97,7 @@ class Controller(QtCore.QObject):
         timer.start(on_time)
 
     def on_package_searched(self):
-        self._state["devRepoRoot"].reload()
+        self._state["devRepoRoot"].load()
         self._models["pkgBook"].reset(self.iter_dev_packages())
 
     def on_target_changed(self, path):
@@ -122,10 +121,10 @@ class Controller(QtCore.QObject):
         installer.run()
 
     def iter_dev_packages(self):
-        paths = [self._state["devRepoRoot"].uri()]
+        dev_repo = self._state["devRepoRoot"]
         seen = dict()
 
-        for family in iter_package_families(paths=paths):
+        for family in dev_repo.iter_package_families():
             name = family.name
             path = family.resource.location
 
@@ -153,6 +152,5 @@ class Controller(QtCore.QObject):
                 yield doc
 
     def find_dev_package(self, name):
-        paths = [self._state["devRepoRoot"].uri()]
-        package = get_latest_package_from_string(name, paths=paths)
-        return package
+        dev_repo = self._state["devRepoRoot"]
+        return dev_repo.find(name)

@@ -1,7 +1,9 @@
 
 import os as __os
 
-dev_repository_root = "~/pipeline/rez-deliver/test"
+dev_repository_roots = [
+    "~/pipeline/rez-deliver/test/packages",
+]
 
 rez_source_path = "~/pipeline/rez"
 
