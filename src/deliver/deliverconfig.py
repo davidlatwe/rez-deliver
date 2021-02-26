@@ -1,9 +1,10 @@
 
 import os as __os
+__root = __os.path.dirname(__file__) + "/../.."
 
 dev_repository_roots = [
-    "~/pipeline/rez-deliver/test/packages",
-    "~/pipeline/rez-deliver/test/others",
+    __os.path.join(__root, "test", "packages"),
+    __os.path.join(__root, "test", "others"),
 ]
 
 rez_source_path = "~/pipeline/rez"
