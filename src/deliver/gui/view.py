@@ -203,11 +203,13 @@ class PackageDataView(QtWidgets.QWidget):
         widgets = {
             "name": QtWidgets.QLineEdit(),
             "version": QtWidgets.QLineEdit(),
+            "source": QtWidgets.QLineEdit(),
             "description": QtWidgets.QTextEdit(),
         }
 
         widgets["name"].setReadOnly(True)
         widgets["version"].setReadOnly(True)
+        widgets["source"].setReadOnly(True)
         widgets["description"].setReadOnly(True)
         widgets["description"].setMaximumHeight(120)
 
@@ -217,6 +219,7 @@ class PackageDataView(QtWidgets.QWidget):
         layout.setSpacing(2)
         layout.addRow("Name:", widgets["name"])
         layout.addRow("Version:", widgets["version"])
+        layout.addRow("Source:", widgets["source"])
         layout.addRow("Description:", widgets["description"])
         layout.addRow("", QtWidgets.QLabel())  # stretch
 
@@ -226,6 +229,7 @@ class PackageDataView(QtWidgets.QWidget):
         data = package.data
         self._widgets["name"].setText(data["name"])
         self._widgets["version"].setText(data.get("version", ""))
+        self._widgets["source"].setText(data.get("_DEV_SRC", ""))
         self._widgets["description"].setText(data.get("description", ""))
 
 

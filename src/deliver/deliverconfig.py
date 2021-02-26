@@ -3,6 +3,7 @@ import os as __os
 
 dev_repository_roots = [
     "~/pipeline/rez-deliver/test/packages",
+    "~/pipeline/rez-deliver/test/others",
 ]
 
 rez_source_path = "~/pipeline/rez"
