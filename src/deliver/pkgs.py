@@ -322,7 +322,7 @@ class PackageInstaller(object):
             )
 
     def _get_build_context(self, variant):
-        paths = self._package_paths + [self.dev_repo.paths]
+        paths = self._package_paths + self.dev_repo.paths
         implicit_pkgs = list(map(PackageRequest, rezconfig.implicit_packages))
         pkg_requests = variant.get_requires(build_requires=True,
                                             private_build_requires=True)
