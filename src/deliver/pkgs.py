@@ -211,8 +211,16 @@ class PackageInstaller(object):
         self.dev_repo = dev_repo
         self.rezsrc_path = rezsrc
         self._requirements = OrderedDict()
-        self._package_paths = []
-        self._deploy_path = None
+
+    @property
+    def installed_packages_path(self):
+        c, r = rezconfig, self.release
+        return c.nonlocal_packages_path if r else c.packages_path
+
+    @property
+    def deploy_path(self):
+        c, r = rezconfig, self.release
+        return c.release_packages_path if r else c.local_packages_path
 
     def target(self, path):
         """
@@ -222,16 +230,7 @@ class PackageInstaller(object):
         release = path == expand_path(rezconfig.release_packages_path)
 
         print("Mode: %s" % ("release" if release else "install"))
-
         self.release = release
-        self._deploy_path = path or (
-            rezconfig.release_packages_path if release
-            else rezconfig.local_packages_path
-        )
-        self._package_paths = (
-            rezconfig.nonlocal_packages_path[:] if release
-            else rezconfig.packages_path[:]
-        )
         self.reset()
 
     def reset(self):
@@ -258,7 +257,7 @@ class PackageInstaller(object):
             self._build(os.path.dirname(src), variant=v_index)
 
     def find_installed(self, name):
-        paths = self._package_paths
+        paths = self.installed_packages_path
         return get_latest_package_from_string(name, paths=paths)
 
     def resolve(self, request, variant_index=None):
@@ -291,7 +290,7 @@ class PackageInstaller(object):
 
             exists = variant.variant_requires in pkg_variants_req
 
-            context = self._get_build_context(variant)
+            context = self._build_context(variant)
             for pkg in context.resolved_packages:
                 self.resolve(request=pkg.qualified_package_name,
                              variant_index=pkg.index)
@@ -302,7 +301,7 @@ class PackageInstaller(object):
         """Use Rez's install script to deploy rez as package
         """
         rezsrc = self.rezsrc_path
-        deploy_path = self._deploy_path
+        deploy_path = self.deploy_path
 
         rez_install = os.path.join(os.path.abspath(rezsrc), "install.py")
         dev_pkg = self.dev_repo.find("rez")
@@ -314,15 +313,15 @@ class PackageInstaller(object):
         for variant in dev_pkg.iter_variants():
             print("Variant: ", variant)
 
-            context = self._get_build_context(variant)
+            context = self._build_context(variant)
             context.execute_shell(
                 command=["python", rez_install, "-v", "-p", deploy_path],
                 block=True,
                 cwd=rezsrc,
             )
 
-    def _get_build_context(self, variant):
-        paths = self._package_paths + self.dev_repo.paths
+    def _build_context(self, variant):
+        paths = self.installed_packages_path + self.dev_repo.paths
         implicit_pkgs = list(map(PackageRequest, rezconfig.implicit_packages))
         pkg_requests = variant.get_requires(build_requires=True,
                                             private_build_requires=True)
@@ -336,7 +335,7 @@ class PackageInstaller(object):
             # installed
             return
 
-        deploy_path = self._deploy_path
+        deploy_path = self.deploy_path
         env = os.environ.copy()
 
         if not os.path.isdir(deploy_path):
@@ -353,7 +352,7 @@ class PackageInstaller(object):
 
     def _build(self, src_dir, variant=None):
         variant_cmd = [] if variant is None else ["--variants", str(variant)]
-        deploy_path = self._deploy_path
+        deploy_path = self.deploy_path
         env = os.environ.copy()
 
         if not os.path.isdir(deploy_path):
