@@ -25,12 +25,16 @@ def build(source_path, build_path, install_path, targets=None):
     build_version = os.environ["REZ_BUILD_PROJECT_VERSION"]
     payload_version = build_version.rsplit("-", 1)[0]
 
-    # Download the source
-    url = "%s/%s" % (url_prefix, filename.format(ver=payload_version))
-    archive = lib.download(url, filename.format(ver=payload_version))
+    if os.getenv(""):
+        # Source from local dev repo
+        source_root = os.getenv("REZ_DELIVER_PKG_DEV_ROOT")
+    else:
+        # Download the source
+        url = "%s/%s" % (url_prefix, filename.format(ver=payload_version))
+        archive = lib.download(url, filename.format(ver=payload_version))
 
-    # Unzip the source
-    source_root = lib.open_archive(archive)
+        # Unzip the source
+        source_root = lib.open_archive(archive)
 
     # Deploy
     lib.copy_dir(source_root, dst)
