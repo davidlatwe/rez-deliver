@@ -102,49 +102,40 @@ class BindPkgRepo(Repo):
 
 class DevPkgRepo(Repo):
 
-    def iter_packages_with_version_expand(self, family):
+    def load_dev_packages(self, family):
         for package in family.iter_packages():
+            pkg_path = os.path.dirname(package.uri)
+
             github_repo = package.data.get("github_repo")
             if github_repo:
-                yield package
                 for ver_tag in git.get_released_tags(github_repo):
                     os.environ["GITHUB_REZ_PKG_PAYLOAD_VER"] = ver_tag
-                    yield package
-            else:
-                yield package
+                    yield DeveloperPackage.from_path(pkg_path)
 
-    def iter_dev_packages(self, paths):
-        for family in iter_package_families(paths=paths):
+            else:
+                yield DeveloperPackage.from_path(pkg_path)
+
+    def iter_dev_packages(self):
+        for family in iter_package_families(paths=[self._root]):
             name = family.name  # package dir name
             versions = dict()
 
-            for _pkg in self.iter_packages_with_version_expand(family):
-                data = _pkg.data.copy()
-                name = data["name"]  # real name in package.py
-
-                package = make_package(name, data=data)
-                data = package.data.copy()
-
-                # preprocessing
-                result = package._get_preprocessed(data)
-                if result:
-                    package, data = result
+            for dev_package in self.load_dev_packages(family):
+                data = dev_package.data.copy()
 
                 if data.get("_DEV_SRC") != "_REZ_BIND":
-                    data["_DEV_SRC"] = _pkg.uri
+                    data["_DEV_SRC"] = dev_package.filepath
 
                 version = data.get("version", "_NO_VERSION")
                 versions[version] = data
 
             yield name, versions
 
-    def load(self, paths=None):
+    def load(self):
         """Load dev-packages from filesystem into memory repository"""
-        paths = paths or [self._root]
-
         self.mem_repo.data = {
             name: versions for name, versions
-            in self.iter_dev_packages(paths)
+            in self.iter_dev_packages()
         }
 
 
@@ -192,7 +183,7 @@ class DevRepoManager(object):
             "allow_unversioned_packages": True,
         }):
             for repo in self._dev_repos:
-                repo.load(dev_paths)
+                repo.load()
 
     def find(self, name):
         return get_latest_package_from_string(name, paths=self.paths)
