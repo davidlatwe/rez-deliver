@@ -49,6 +49,11 @@ def dev_paths():
     }
 
 
+dev_args = {
+    "root"
+}
+
+
 def pre_commands():
     this = globals()["this"]
     expandvars = globals()["expandvars"]
@@ -61,6 +66,8 @@ def pre_commands():
     if intersects(ephemerals.get(feature, default), "1"):
         # Must using {this.root} instead of {root} in path
         this.root = "C:/Users/david/rez/packages/install/foo/1/dev"
+
+        # stop("some bad happened..")
 
 
 def commands():
