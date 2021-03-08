@@ -109,7 +109,7 @@ class DevPkgRepo(Repo):
             github_repo = package.data.get("github_repo")
             if github_repo:
                 for ver_tag in git.get_released_tags(github_repo):
-                    os.environ["GITHUB_REZ_PKG_PAYLOAD_VER"] = ver_tag
+                    os.environ["REZ_DELIVER_PKG_PAYLOAD_VER"] = ver_tag
                     yield DeveloperPackage.from_path(pkg_path)
 
             else:
