@@ -22,12 +22,13 @@ def build(source_path, build_path, install_path, targets=None):
     if os.path.isdir(dst):
         lib.clean(dst)
 
+    local_payload = os.getenv("REZ_BUILD_PKG_PAYLOAD_ROOT")
     build_version = os.environ["REZ_BUILD_PROJECT_VERSION"]
     payload_version = build_version.rsplit("-", 1)[0]
 
-    if os.getenv(""):
+    if local_payload:
         # Source from local dev repo
-        source_root = os.getenv("REZ_DELIVER_PKG_DEV_ROOT")
+        source_root = local_payload
     else:
         # Download the source
         url = "%s/%s" % (url_prefix, filename.format(ver=payload_version))

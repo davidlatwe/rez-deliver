@@ -8,29 +8,32 @@ github_repo = "davidlatwe/delivertest"  # for rez-deliver
 @early()
 def version():
     import os
+    import warnings
 
     package_ver = "m1"
+    payload_ver = os.getenv("REZ_DELIVER_PKG_PAYLOAD_VER")
 
-    # These two environment variables should be set by our
-    # 'github-based Rez package releasing tool' -> rez-deliver
-    #
-    payload_ver = "REZ_DELIVER_PKG_PAYLOAD_VER"
-
-    if os.getenv(payload_ver):
+    if payload_ver:
         return "%s-%s" % (
             # payload version
-            os.environ[payload_ver],
+            payload_ver,
             # package def version
             package_ver
         )
 
     else:
+        warnings.warn("Package payload version not set.")
         return "0.0.0-" + package_ver
 
 
 def pre_build_commands():
     env = globals()["env"]
     this = globals()["this"]
+    expandvars = globals()["expandvars"]
+    optionvars = globals()["optionvars"]
+
+    feature = expandvars("{this.name}.dev")
+    env.REZ_BUILD_PKG_PAYLOAD_ROOT = optionvars(feature) or ""
     env.GITHUB_REPO = this.github_repo
 
 
@@ -40,34 +43,25 @@ private_build_requires = ["rezutil-1"]
 build_command = "python {root}/rezbuild.py {install}"
 
 
-@late()
-def dev_paths():
-    # Load dev path from JSON
-    return {
-        "root": "C:/Users/david/rez/packages/install/foo/1/dev",
-        "bin": None,
-    }
-
-
-dev_args = {
-    "root"
-}
-
-
 def pre_commands():
     this = globals()["this"]
+    stop = globals()["stop"]
     expandvars = globals()["expandvars"]
     intersects = globals()["intersects"]
     ephemerals = globals()["ephemerals"]
+    optionvars = globals()["optionvars"]
 
     # Change package root to dev repo
     feature = expandvars("{this.name}.dev")
     default = "%s-0" % feature
     if intersects(ephemerals.get(feature, default), "1"):
-        # Must using {this.root} instead of {root} in path
-        this.root = "C:/Users/david/rez/packages/install/foo/1/dev"
-
-        # stop("some bad happened..")
+        # Change payload path
+        # Must use {this.root} instead of {root} in path
+        dev_root = optionvars(feature)
+        if dev_root:
+            this.root = dev_root
+        else:
+            stop("%s not set in rezconfig.." % feature)
 
 
 def commands():
