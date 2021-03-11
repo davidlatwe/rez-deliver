@@ -25,9 +25,3 @@ def scriptname(name):
 def run_rez_deliver():
     from rez.cli._main import run
     return run("deliver")
-
-
-@scriptname("rez-deliver-gui")
-def run_rez_deliver():
-    from rez.cli._main import run
-    return run("deliver-gui")
