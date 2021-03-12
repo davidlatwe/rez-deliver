@@ -81,8 +81,8 @@ class BindPkgRepo(Repo):
     def root(self):
         return self.mem_uid
 
-    @classmethod
-    def bindings(cls):
+    @property
+    def bindings(self):
         return {
             "os": pkg_os,
             "arch": pkg_arch,
@@ -90,7 +90,7 @@ class BindPkgRepo(Repo):
         }
 
     def iter_bind_packages(self):
-        for name, maker in self.bindings().items():
+        for name, maker in self.bindings.items():
             data = maker().data.copy()
             data["_DEV_SRC"] = self._root
             yield name, {data["version"]: data}
@@ -243,7 +243,7 @@ class PackageInstaller(object):
                 self._install_rez_as_package()
                 continue
 
-            if name in self.dev_repo.binds:
+            if name in self.dev_repo.binds.bindings:
                 self._bind(name)
                 continue
 
