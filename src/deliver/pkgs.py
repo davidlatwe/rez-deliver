@@ -336,10 +336,10 @@ class PackageInstaller(object):
 
         if self.release:
             env["REZ_RELEASE_PACKAGES_PATH"] = deploy_path
-            subprocess.check_call(["rez-bind", "--release", name], env=env)
+            self._run_command(["rez-bind", "--release", name], env=env)
         else:
             env["REZ_LOCAL_PACKAGES_PATH"] = deploy_path
-            subprocess.check_call(["rez-bind", name])
+            self._run_command(["rez-bind", name])
 
         clear_repo_cache(deploy_path)
 
@@ -354,13 +354,17 @@ class PackageInstaller(object):
         if self.release:
             env["REZ_RELEASE_PACKAGES_PATH"] = deploy_path
             args = ["rez-release"] + variant_cmd
-            subprocess.check_call(args, cwd=src_dir, env=env)
+            self._run_command(args, cwd=src_dir, env=env)
         else:
             env["REZ_LOCAL_PACKAGES_PATH"] = deploy_path
             args = ["rez-build", "--install"] + variant_cmd
-            subprocess.check_call(args, cwd=src_dir)
+            self._run_command(args, cwd=src_dir)
 
         clear_repo_cache(deploy_path)
+
+    def _run_command(self, cmd_args, **kwargs):
+        print("Running command:\n    %s\n" % cmd_args)
+        subprocess.check_call(cmd_args, **kwargs)
 
 
 @contextlib.contextmanager
