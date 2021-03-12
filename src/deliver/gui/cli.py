@@ -2,8 +2,10 @@
 import os
 import sys
 from .vendor.Qt5 import QtCore, QtWidgets
-from ..cli import load_userconfig as _load_userconfig
 from . import resources, control, app
+
+
+_APP_NAME = "Deliver"
 
 
 def init():
@@ -14,13 +16,8 @@ def init():
 
     storage = QtCore.QSettings(QtCore.QSettings.IniFormat,
                                QtCore.QSettings.UserScope,
-                               "Sweet", "preferences")
+                               _APP_NAME, "preferences")
     print("Preference file: %s" % storage.fileName())
-
-    try:
-        _load_userconfig()
-    except IOError:
-        pass
 
     resources.load_themes()
     qss = resources.load_theme(name=storage.value("theme"))

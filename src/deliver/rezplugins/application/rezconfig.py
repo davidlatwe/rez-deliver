@@ -1,10 +1,14 @@
 
 import os as __os
-__root = __os.path.dirname(__file__) + "/../.."
+__root = __os.path.join(__os.path.dirname(__file__), *[".."] * 4)
 
-with open(__os.path.expanduser("~/github.token"), "r") as f:
-    __github_token = f.read().strip()
 
+def _github_token():
+    with open(__os.path.expanduser("~/github.token"), "r") as f:
+        return f.read().strip()
+
+
+# CONFIG
 deliver = {
     "dev_repository_roots": [
         __os.path.join(__root, "test", "packages"),
@@ -13,7 +17,7 @@ deliver = {
 
     "rez_source_path": "~/pipeline/rez",
 
-    "github_token": __github_token,
+    "github_token": _github_token(),
 
     # Cache dev packages into a JSON file for quicker startup on next launch.
     "cache_dev_packages": False,

@@ -19,11 +19,13 @@ from rez.utils.logging_ import logger as rez_logger
 from rez.packages import get_latest_package_from_string
 from rez.package_repository import package_repository_manager
 
-from . import git, deliverconfig
+from . import git
 
 
 # silencing rez logger, e.g. on package preprocessing
 rez_logger.setLevel(logging.WARNING)
+
+deliverconfig = rezconfig.plugins.application.deliver
 
 
 def expand_path(path):
