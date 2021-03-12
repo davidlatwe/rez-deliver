@@ -33,7 +33,7 @@ def pre_build_commands():
     optionvars = globals()["optionvars"]
 
     feature = expandvars("{this.name}.dev")
-    env.REZ_BUILD_PKG_PAYLOAD_ROOT = optionvars(feature) or ""
+    env.REZ_BUILD_PKG_PAYLOAD_ROOT = optionvars(feature, default="")
     env.GITHUB_REPO = this.github_repo
 
 
