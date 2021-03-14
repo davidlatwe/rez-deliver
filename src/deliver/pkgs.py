@@ -233,6 +233,10 @@ class PackageInstaller(object):
         return self._requirements.copy()
 
     def run(self):
+        for _ in self.run_iter():
+            pass
+
+    def run_iter(self):
         for (q_name, v_index), (exists, src) in self._requirements.items():
             if exists:
                 continue
@@ -241,13 +245,12 @@ class PackageInstaller(object):
 
             if name == "rez":
                 self._install_rez_as_package()
-                continue
-
-            if name in self.dev_repo.binds.bindings:
+            elif name in self.dev_repo.binds.bindings:
                 self._bind(name)
-                continue
+            else:
+                self._build(os.path.dirname(src), variant=v_index)
 
-            self._build(os.path.dirname(src), variant=v_index)
+            yield q_name, v_index
 
     def find_installed(self, name):
         paths = self.installed_packages_path

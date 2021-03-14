@@ -1,6 +1,6 @@
 
 from .vendor.Qt5 import QtCore, QtWidgets
-from . import common, model, delegate
+from . import common, model
 
 # TODO:
 #   * parse request into model item check state
@@ -185,10 +185,6 @@ class PackageBookView(QtWidgets.QWidget):
             self.selected.emit("", -1)
 
 
-class PackageDependencyView(QtWidgets.QWidget):
-    pass
-
-
 class PackageDataView(QtWidgets.QWidget):
 
     def __init__(self, parent=None):
@@ -245,12 +241,14 @@ class InstallerView(QtWidgets.QWidget):
         widgets = {
             "targets": QtWidgets.QComboBox(),
             "manifest": QtWidgets.QPushButton("Manifest"),
+            "view": common.view.SlimTableView(),
             "install": QtWidgets.QPushButton("Install"),
         }
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(widgets["targets"])
         layout.addWidget(widgets["manifest"])
+        layout.addWidget(widgets["view"])
         layout.addWidget(widgets["install"])
 
         widgets["targets"].currentTextChanged.connect(self.targeted.emit)
@@ -262,5 +260,6 @@ class InstallerView(QtWidgets.QWidget):
     def init(self):
         self.targeted.emit(self._widgets["targets"].currentText())
 
-    def set_model(self, model_):
-        self._widgets["targets"].setModel(model_)
+    def set_model(self, targets, manifest):
+        self._widgets["targets"].setModel(targets)
+        self._widgets["view"].setModel(manifest)

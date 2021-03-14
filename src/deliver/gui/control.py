@@ -72,9 +72,8 @@ class Controller(QtCore.QObject):
 
         models_ = {
             "pkgBook": model.PackageBookModel(),
-            "pkgDep": None,
             "pkgPaths": QtCore.QStringListModel(state["deployPaths"]),
-            "pkgMan": None
+            "pkgManifest": model.PackageManifestModel(),
         }
 
         timers["packageSearch"].timeout.connect(self.on_package_searched)
@@ -103,22 +102,22 @@ class Controller(QtCore.QObject):
     def on_target_changed(self, path):
         installer = self._state["installer"]
         installer.target(path)
-        # self._models["pkgMan"].clear()
+        self._models["pkgManifest"].clear()
 
     def on_manifested(self):
         self.resolve_requests()
         installer = self._state["installer"]
-        for m in installer.manifest():
-            print(m)
-        # self._models["pkgMan"].load(installer.manifest())
+        self._models["pkgManifest"].load(installer.manifest())
 
     def on_installed(self):
         # Unlike CLI mode that installer runs right after resolve, any package
         # change may happen e.g. deletion, after manifested in GUI mode. So we
         # re-resolve requests again here just in case.
-        self.resolve_requests()
+        self.on_manifested()
         installer = self._state["installer"]
-        installer.run()
+        for installed in installer.run_iter():
+            qualified_name, variant_index = installed
+            self._models["pkgManifest"].installed(qualified_name, variant_index)
 
     def iter_dev_packages(self):
         dev_repo = self._state["devRepoRoot"]

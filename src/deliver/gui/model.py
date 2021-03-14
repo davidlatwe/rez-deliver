@@ -208,3 +208,71 @@ class PackageBookProxyModel(QtCore.QSortFilterProxyModel):
         self.setFilterCaseSensitivity(QtCore.Qt.CaseInsensitive)
         self.setSortCaseSensitivity(QtCore.Qt.CaseInsensitive)
         self.setFilterRole(PackageBookModel.FilterRole)
+
+
+class PackageManifestModel(common.model.AbstractTableModel):
+    Headers = [
+        "status",
+        "name",
+        "variant",
+    ]
+
+    def clear(self):
+        self.beginResetModel()
+        self.items.clear()
+        self.endResetModel()
+
+    def load(self, manifest):
+        for (q_name, v_index), (exists, src) in manifest.items():
+            self.items.append({
+                "status": exists,
+                "name": q_name,
+                "variant": v_index,
+            })
+
+    def findVariant(self, name, variant):
+        return next(i for i in self.items
+                    if i["name"] == name and i["variant"] == variant)
+
+    def findVariantIndex(self, name, variant, column=0):
+        row = self.items.index(self.findVariant(name, variant))
+        return self.createIndex(row, column, QtCore.QModelIndex())
+
+    def installed(self, name, variant):
+        index = self.findVariantIndex(name, variant)
+        self.setData(index, True)
+
+    def data(self, index, role=QtCore.Qt.DisplayRole):
+        if not index.isValid():
+            return None
+
+        row = index.row()
+        col = index.column()
+
+        try:
+            data = self.items[row]
+        except IndexError:
+            return None
+
+        if col == 0 and role == QtCore.Qt.DisplayRole:
+            return data["status"]
+
+        if col == 1 and role == QtCore.Qt.DisplayRole:
+            return data["name"]
+
+        if col == 2 and role == QtCore.Qt.DisplayRole:
+            return data["variant"]
+
+    def setData(self, index, value, role=QtCore.Qt.EditRole):
+        if not index.isValid():
+            return None
+
+        row = index.row()
+
+        try:
+            data = self.items[row]
+        except IndexError:
+            return None
+
+        data["status"] = value
+        self.dataChanged.emit(index, index)

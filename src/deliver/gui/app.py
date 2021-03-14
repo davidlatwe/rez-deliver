@@ -24,7 +24,8 @@ class Window(QtWidgets.QWidget):
 
         # setup
         pages["pkgBook"].set_model(ctrl.models["pkgBook"])
-        pages["install"].set_model(ctrl.models["pkgPaths"])
+        pages["install"].set_model(ctrl.models["pkgPaths"],
+                                   ctrl.models["pkgManifest"])
 
         # signals
         pages["pkgBook"].selected.connect(self.on_package_selected)
