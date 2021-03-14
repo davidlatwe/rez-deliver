@@ -106,17 +106,17 @@ class Controller(QtCore.QObject):
         # self._models["pkgMan"].clear()
 
     def on_manifested(self):
+        self.resolve_requests()
         installer = self._state["installer"]
-        installer.reset()
-
-        for name, index in self._models["pkgBook"].iter_requests():
-            installer.resolve(name, index)
-
         for m in installer.manifest():
             print(m)
         # self._models["pkgMan"].load(installer.manifest())
 
     def on_installed(self):
+        # Unlike CLI mode that installer runs right after resolve, any package
+        # change may happen e.g. deletion, after manifested in GUI mode. So we
+        # re-resolve requests again here just in case.
+        self.resolve_requests()
         installer = self._state["installer"]
         installer.run()
 
@@ -154,3 +154,9 @@ class Controller(QtCore.QObject):
     def find_dev_package(self, name):
         dev_repo = self._state["devRepoRoot"]
         return dev_repo.find(name)
+
+    def resolve_requests(self):
+        installer = self._state["installer"]
+        installer.reset()
+        for name, index in self._models["pkgBook"].iter_requests():
+            installer.resolve(name, index)
