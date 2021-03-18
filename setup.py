@@ -1,32 +1,10 @@
 from __future__ import print_function, with_statement
 
-import os.path
 import sys
-
-
-try:
-    from setuptools import setup, find_packages, find_namespace_packages
-    from setuptools.command import build_py
-except ImportError:
-    print("install failed - requires setuptools", file=sys.stderr)
-    sys.exit(1)
-
-
-if sys.version_info < (2, 7):
-    print("install failed - requires python v2.7 or greater", file=sys.stderr)
-    sys.exit(1)
-
-
-# This package should be installed in Rez production install venv
-try:
-    from rez.system import system as rez_system
-except ImportError:
-    print("install failed - Rez not found.")
-    sys.exit(1)
-
-if rez_system.rez_bin_path is None:
-    print("install failed - Rez is not a production install.")
-    sys.exit(1)
+import os
+import fnmatch
+from setuptools import setup, find_packages
+from setuptools.command import install_scripts
 
 
 # carefully import some sourcefiles that are standalone
@@ -37,11 +15,21 @@ sys.path.insert(0, src_path)
 from deliver._entry_points import get_specifications
 from deliver._version import version
 
-with open(os.path.join(source_path, "README.md")) as f:
-    long_description = f.read()
+
+class InstallRezScripts(install_scripts.install_scripts):
+
+    def run(self):
+        from rez.utils.installer import create_rez_production_scripts
+        install_scripts.install_scripts.run(self)
+        # patch_rez_binaries
+        build_path = os.path.join(self.build_dir, "rez")
+        install_path = os.path.join(self.install_dir, "rez")
+        specifications = get_specifications().values()
+        create_rez_production_scripts(build_path, specifications)
+        self.outfiles += self.copy_tree(build_path, install_path)
 
 
-def find_files(pattern, path=None, root="deliver"):
+def find_files(pattern, path=None, root="deliver", prefix=""):
     paths = []
     basepath = os.path.realpath(os.path.join("src", root))
     path_ = basepath
@@ -53,10 +41,14 @@ def find_files(pattern, path=None, root="deliver"):
         files = [os.path.join(root, x) for x in files]
         paths += [x[len(basepath):].lstrip(os.path.sep) for x in files]
 
-    return paths
+    return [prefix + p for p in paths]
 
 
-setup_args = dict(
+with open(os.path.join(source_path, "README.md")) as f:
+    long_description = f.read()
+
+
+setup(
     name="deliver",
     package_data={
         "deliver":
@@ -70,7 +62,6 @@ setup_args = dict(
             find_files("LICENSE")
     },
     install_requires=[
-        "rez>=2.78.0",  # on development
         "pygithub",
         "requests==2.24.0",
     ],
@@ -87,81 +78,8 @@ setup_args = dict(
     version=version,
     description="Rez cli for releasing packages from GitHub repositories",
     long_description=long_description,
-)
-
-
-class BuildPyWithRezBinsPatch(build_py.build_py):
-
-    def run(self):
-        build_py.build_py.run(self)
-        self.patch_rez_binaries()
-
-    def _append(self, data_files):
-        """Append `data_files` into `distribution.data_files`
-
-        Just like how additional files be assigned with setup(data_files=[..]),
-        but for those extra files that can only be created in build time, here
-        is the second chance.
-
-        The `data_files` specifies a sequence of (directory, files) pairs in
-        the following way:
-
-            setup(...,
-                data_files=[('config', ['foo/cfg/data.cfg'])],
-            )
-
-        Each (directory, files) pair in the sequence specifies the installation
-        directory and the files to install there.
-
-        So in the example above, the file `data.cfg` will be installed to
-        `config/data.cfg`.
-
-        IMPORTANT:
-        The directory MUST be a relative path. It is interpreted relative to
-        the installation prefix (Python’s sys.prefix for system installations;
-        site.USER_BASE for user installations).
-
-        @param data_files: a sequence of (directory, files) pairs
-        @return:
-        """
-        # will be picked up by `distutils.command.install_data`
-        if self.distribution.data_files is None:
-            self.distribution.data_files = data_files
-        else:
-            self.distribution.data_files += data_files
-
-    def patch_rez_binaries(self):
-        from rez.vendor.distlib.scripts import ScriptMaker
-
-        self.announce("Generating rez bin tools...", level=3)
-
-        # Create additional build dir for binaries, so they won't be handled
-        # as regular builds under "build/lib".
-        build_path = os.path.join("build", "rez_b")
-        self.mkpath(build_path)
-
-        # Make binaries, referenced from rez's install.py
-        maker = ScriptMaker(
-            source_dir=None,
-            target_dir=build_path
-        )
-        maker.executable = sys.executable
-        rel_rez_bin_paths = maker.make_multiple(
-            specifications=get_specifications().values(),
-            options=dict(interpreter_args=["-E"])
-        )
-
-        # Compute relative install path, to work with wheel.
-        # Install path, e.g. "bin/rez" or "scripts/rez" on Windows.
-        abs_rez_dir = os.path.join(os.path.dirname(sys.executable), "rez")
-        rel_rez_dir = os.path.relpath(abs_rez_dir, sys.prefix)
-
-        self._append([(rel_rez_dir, rel_rez_bin_paths)])
-
-
-setup(
     cmdclass={
-        "build_py": BuildPyWithRezBinsPatch,
+        "install_scripts": InstallRezScripts,
     },
     classifiers=[
         "Development Status :: 5 - Production/Stable",
@@ -176,5 +94,4 @@ setup(
         "Topic :: Software Development",
         "Topic :: System :: Software Distribution"
     ],
-    **setup_args
 )

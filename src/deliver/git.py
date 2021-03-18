@@ -6,7 +6,7 @@ from github import Github  # PyGithub, requests==2.24.0
 from rez.config import config as rezconfig
 
 
-g = Github(rezconfig.plugins.application.deliver.github_token)
+g = Github(rezconfig.plugins.extension.deliver.github_token)
 
 
 def clone(url, dst, branch=None, single_branch=True):

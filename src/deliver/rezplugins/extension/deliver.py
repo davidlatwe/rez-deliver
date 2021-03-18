@@ -1,7 +1,7 @@
 """
 Rez developer package delivering tool
 """
-from rez.application import Application
+from rez.extension import Extension
 
 
 command_behavior = {}
@@ -31,7 +31,6 @@ def setup_parser(parser, completions=False):
 def command(opts, parser=None, extra_arg_groups=None):
     from rez.config import config
     from deliver._version import version
-    from deliver.gui import cli as gui
     from deliver import cli
 
     # TODO: ensure vcs plugin "kit" is loaded on package release
@@ -42,6 +41,7 @@ def command(opts, parser=None, extra_arg_groups=None):
         return
 
     if opts.gui:
+        from deliver.gui import cli as gui
         return gui.main()
 
     if opts.list:
@@ -77,7 +77,7 @@ def command(opts, parser=None, extra_arg_groups=None):
               "view available packages.")
 
 
-class ApplicationDeliver(Application):
+class ExtensionDeliver(Extension):
     schema_dict = {
         "dev_repository_roots": list,
         "rez_source_path": str,
@@ -92,4 +92,4 @@ class ApplicationDeliver(Application):
 
 
 def register_plugin():
-    return ApplicationDeliver
+    return ExtensionDeliver

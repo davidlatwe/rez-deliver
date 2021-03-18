@@ -25,7 +25,7 @@ from . import git
 # silencing rez logger, e.g. on package preprocessing
 rez_logger.setLevel(logging.WARNING)
 
-deliverconfig = rezconfig.plugins.application.deliver
+deliverconfig = rezconfig.plugins.extension.deliver
 
 
 def expand_path(path):
