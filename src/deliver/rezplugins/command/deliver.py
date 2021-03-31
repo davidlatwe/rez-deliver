@@ -1,7 +1,7 @@
 """
 Rez developer package delivering tool
 """
-from rez.extension import Extension
+from rez.command import Command
 
 
 command_behavior = {}
@@ -77,7 +77,7 @@ def command(opts, parser=None, extra_arg_groups=None):
               "view available packages.")
 
 
-class ExtensionDeliver(Extension):
+class DeliverCommand(Command):
     schema_dict = {
         "dev_repository_roots": list,
         "rez_source_path": str,
@@ -92,4 +92,4 @@ class ExtensionDeliver(Extension):
 
 
 def register_plugin():
-    return ExtensionDeliver
+    return DeliverCommand

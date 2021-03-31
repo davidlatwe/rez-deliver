@@ -1,10 +1,9 @@
 from __future__ import print_function, with_statement
 
-import sys
 import os
+import sys
 import fnmatch
 from setuptools import setup, find_packages
-from setuptools.command import install_scripts
 
 
 # carefully import some sourcefiles that are standalone
@@ -12,21 +11,7 @@ source_path = os.path.dirname(os.path.realpath(__file__))
 src_path = os.path.join(source_path, "src")
 sys.path.insert(0, src_path)
 
-from deliver._entry_points import get_specifications
 from deliver._version import version
-
-
-class InstallRezScripts(install_scripts.install_scripts):
-
-    def run(self):
-        from rez.utils.installer import create_rez_production_scripts
-        install_scripts.install_scripts.run(self)
-        # patch_rez_binaries
-        build_path = os.path.join(self.build_dir, "rez")
-        install_path = os.path.join(self.install_dir, "rez")
-        specifications = get_specifications().values()
-        create_rez_production_scripts(build_path, specifications)
-        self.outfiles += self.copy_tree(build_path, install_path)
 
 
 def find_files(pattern, path=None, root="deliver", prefix=""):
@@ -49,7 +34,7 @@ with open(os.path.join(source_path, "README.md")) as f:
 
 
 setup(
-    name="deliver",
+    name="rez-deliver",
     package_data={
         "deliver":
             find_files("rezconfig") +
@@ -78,9 +63,6 @@ setup(
     version=version,
     description="Rez cli for releasing packages from GitHub repositories",
     long_description=long_description,
-    cmdclass={
-        "install_scripts": InstallRezScripts,
-    },
     classifiers=[
         "Development Status :: 5 - Production/Stable",
         "License :: OSI Approved :: GNU Lesser General Public License v3 (LGPLv3)",
