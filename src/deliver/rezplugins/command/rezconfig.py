@@ -10,7 +10,8 @@ deliver = {
         __os.path.join(__root, "test", "others"),
     ],
 
-    "rez_source_path": "~/pipeline/rez",
+    "rez_source_path": "~/rez/source",
+    "rez_source_git": "https://github.com/nerdvegas/rez.git",
 
     # Cache dev packages into a JSON file for quicker startup on next launch.
     "cache_dev_packages": False,

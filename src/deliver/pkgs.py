@@ -210,6 +210,7 @@ class PackageInstaller(object):
         self.release = False
         self.dev_repo = dev_repo
         self.rezsrc_path = rezsrc
+        self.rezsrc_git = deliverconfig.rez_source_git
         self._requirements = OrderedDict()
 
     @property
@@ -303,10 +304,15 @@ class PackageInstaller(object):
     def _install_rez_as_package(self):
         """Use Rez's install script to deploy rez as package
         """
+        rezgit = self.rezsrc_git
         rezsrc = self.rezsrc_path
         deploy_path = self.deploy_path
 
-        rez_install = os.path.join(os.path.abspath(rezsrc), "install.py")
+        if not os.path.isdir(rezsrc):
+            args = ["git", "clone", "--single-branch", rezgit, rezsrc]
+            subprocess.check_call(args)
+
+        rez_install = os.path.join(rezsrc, "install.py")
         dev_pkg = self.dev_repo.find("rez")
 
         print("Installing Rez as package..")
