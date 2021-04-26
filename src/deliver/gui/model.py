@@ -223,12 +223,17 @@ class PackageManifestModel(common.model.AbstractTableModel):
         self.endResetModel()
 
     def load(self, manifest):
+        self.beginResetModel()
+        self.items.clear()
+
         for (q_name, v_index), (exists, src) in manifest.items():
             self.items.append({
                 "status": exists,
                 "name": q_name,
                 "variant": v_index,
             })
+
+        self.endResetModel()
 
     def findVariant(self, name, variant):
         return next(i for i in self.items
