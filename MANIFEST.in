@@ -1,0 +1,7 @@
+
+global-include *LICENSE* *.txt *.md *.rst
+recursive-include src/deliver/gui/resources/images *.svg *.png
+recursive-include src/deliver/gui/resources/fonts *.ttf
+include src/deliver/gui/resources/*.qss
+include src/deliver/rezplugins/*/rezconfig
+include pyproject.toml

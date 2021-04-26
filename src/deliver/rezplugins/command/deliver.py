@@ -1,6 +1,7 @@
 """
 Rez developer package delivering tool
 """
+import sys
 from rez.command import Command
 
 
@@ -30,15 +31,14 @@ def setup_parser(parser, completions=False):
 
 def command(opts, parser=None, extra_arg_groups=None):
     from rez.config import config
-    from deliver._version import version
     from deliver import cli
 
     # TODO: ensure vcs plugin "kit" is loaded on package release
     # TODO: This deploy script requires to be in rez venv
 
     if opts.version:
-        print(version)
-        return
+        from deliver._version import print_info
+        sys.exit(print_info())
 
     if opts.gui:
         from deliver.gui import cli as gui
