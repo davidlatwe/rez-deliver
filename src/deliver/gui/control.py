@@ -128,7 +128,7 @@ class Controller(QtCore.QObject):
             path = family.resource.location
 
             for package in family.iter_packages():
-                if package.data.get("_DEV_SRC") == "_REZ_BIND":
+                if package.data.get("__source__") == pkgs.Repo.BIND:
                     break
 
                 qualified_name = package.qualified_name

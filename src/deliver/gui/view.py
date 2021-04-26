@@ -225,7 +225,7 @@ class PackageDataView(QtWidgets.QWidget):
         data = package.data
         self._widgets["name"].setText(data["name"])
         self._widgets["version"].setText(data.get("version", ""))
-        self._widgets["source"].setText(data.get("_DEV_SRC", ""))
+        self._widgets["source"].setText(data.get("__source__", ""))
         self._widgets["description"].setText(data.get("description", ""))
 
 

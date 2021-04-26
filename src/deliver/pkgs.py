@@ -52,6 +52,7 @@ MainMemoryRepo
 
 
 class Repo(object):
+    BIND = "rez:bind"
 
     def __init__(self, root):
         self._root = root
@@ -75,6 +76,9 @@ class Repo(object):
 
 class BindPkgRepo(Repo):
 
+    def __init__(self):
+        Repo.__init__(self, self.BIND)
+
     @property
     def root(self):
         return self.mem_uid
@@ -90,7 +94,7 @@ class BindPkgRepo(Repo):
     def iter_bind_packages(self):
         for name, maker in self.bindings.items():
             data = maker().data.copy()
-            data["_DEV_SRC"] = self._root
+            data["__source__"] = self._root
             yield name, {data["version"]: data}
 
     def load(self):
@@ -129,9 +133,7 @@ class DevPkgRepo(Repo):
 
             for dev_package in self.generate_dev_packages(family):
                 data = dev_package.data.copy()
-
-                if data.get("_DEV_SRC") != "_REZ_BIND":
-                    data["_DEV_SRC"] = dev_package.filepath
+                data["__source__"] = dev_package.filepath
 
                 version = data.get("version", "_NO_VERSION")
                 versions[version] = data
@@ -153,7 +155,7 @@ class DevRepoManager(object):
             DevPkgRepo(root=expand_path(root))
             for root in deliverconfig.dev_repository_roots
         ]
-        self._bind_repo = BindPkgRepo(root="_REZ_BIND")
+        self._bind_repo = BindPkgRepo()
 
     @property
     def binds(self):
@@ -277,7 +279,7 @@ class PackageInstaller(object):
         else:
             name = develop.qualified_name
             variants = develop.iter_variants()
-            source = develop.data["_DEV_SRC"]
+            source = develop.data["__source__"]
 
         if package is None:
             pkg_variants_req = []
