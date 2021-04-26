@@ -16,7 +16,7 @@ from rez.utils.formatting import PackageRequest
 from rez.resolved_context import ResolvedContext
 from rez.developer_package import DeveloperPackage
 from rez.utils.logging_ import logger as rez_logger
-from rez.packages import get_latest_package_from_string
+from rez.packages import get_latest_package_from_string, get_latest_package
 from rez.package_repository import package_repository_manager
 
 
@@ -106,51 +106,73 @@ class BindPkgRepo(Repo):
 
 class DevPkgRepo(Repo):
 
-    def git_tags(self, url):
+    def _git_tags(self, url):
         args = ["git", "ls-remote", "--tags", url]
         output = subprocess.check_output(args, universal_newlines=True)
         for line in output.splitlines():
             yield line.split("refs/tags/")[-1]
 
+    def _generate_dev_packages(self, package):
+        pkg_path = os.path.dirname(package.uri)
+
+        git_url = package.data.get("git_url")
+        if git_url:
+            for ver_tag in self._git_tags(git_url):
+
+                os.environ["REZ_DELIVER_PKG_PAYLOAD_VER"] = ver_tag
+                yield DeveloperPackage.from_path(pkg_path)
+
+        else:
+            yield DeveloperPackage.from_path(pkg_path)
+
     def generate_dev_packages(self, family):
         for package in family.iter_packages():
-            pkg_path = os.path.dirname(package.uri)
+            for dev_package in self._generate_dev_packages(package):
+                data = dev_package.data.copy()
+                data["__source__"] = dev_package.filepath
+                version = data.get("version", "_NO_VERSION")
 
-            git_url = package.data.get("git_url")
-            if git_url:
-                for ver_tag in self.git_tags(git_url):
-
-                    os.environ["REZ_DELIVER_PKG_PAYLOAD_VER"] = ver_tag
-                    yield DeveloperPackage.from_path(pkg_path)
-
-            else:
-                yield DeveloperPackage.from_path(pkg_path)
+                yield version, data
 
     def iter_dev_packages(self):
         for family in iter_package_families(paths=[self._root]):
             name = family.name  # package dir name
             versions = dict()
 
-            for dev_package in self.generate_dev_packages(family):
-                data = dev_package.data.copy()
-                data["__source__"] = dev_package.filepath
-
-                version = data.get("version", "_NO_VERSION")
+            for version, data in self.generate_dev_packages(family):
                 versions[version] = data
 
             yield name, versions
 
-    def load(self):
+    def get_dev_package_versions(self, name):
+        it = iter_package_families(paths=[self._root])
+        family = next((f for f in it if f.name == name), None)
+        if family is None:
+            return
+
+        for version, data in self.generate_dev_packages(family):
+            yield version, data
+
+    def load(self, name=None):
         """Load dev-packages from filesystem into memory repository"""
-        self.mem_repo.data = {
-            name: versions for name, versions
-            in self.iter_dev_packages()
-        }
+        if name:
+            # partial load
+            for version, data in self.get_dev_package_versions(name):
+                # parse all "requires"
+                pass
+
+        else:
+            # full load
+            self.mem_repo.data = {
+                name: versions for name, versions
+                in self.iter_dev_packages()
+            }
 
 
 class DevRepoManager(object):
 
     def __init__(self):
+        self._all_loaded = False
         self._dev_repos = [
             DevPkgRepo(root=expand_path(root))
             for root in deliverconfig.dev_repository_roots
@@ -171,7 +193,7 @@ class DevRepoManager(object):
 
         return mem_paths
 
-    def load(self):
+    def load(self, name=None):
         self._bind_repo.load()
 
         dev_paths = [
@@ -192,12 +214,22 @@ class DevRepoManager(object):
             "allow_unversioned_packages": True,
         }):
             for repo in self._dev_repos:
-                repo.load()
+                repo.load(name=name)
 
-    def find(self, name):
-        return get_latest_package_from_string(name, paths=self.paths)
+        if not name:
+            self._all_loaded = True
+
+    def find(self, request):
+        request = PackageRequest(request)
+        if not self._all_loaded:
+            self.load(name=request.name)
+        return get_latest_package(name=request.name,
+                                  range_=request.range_,
+                                  paths=self.paths)
 
     def iter_package_families(self):
+        if not self._all_loaded:
+            self.load()
         for family in iter_package_families(paths=self.paths):
             yield family
 
