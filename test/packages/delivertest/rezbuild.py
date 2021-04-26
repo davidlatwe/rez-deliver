@@ -3,7 +3,7 @@ import os
 import sys
 
 
-url_prefix = "https://github.com/%s/archive" % os.environ["GITHUB_REPO"]
+url_prefix = "https://github.com/davidlatwe/delivertest/archive"
 filename = "{ver}.zip"
 
 

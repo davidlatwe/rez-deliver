@@ -2,13 +2,12 @@
 
 name = "delivertest"
 
-github_repo = "davidlatwe/delivertest"  # for rez-deliver
+git_url = "https://github.com/davidlatwe/delivertest.git"
 
 
 @early()
 def version():
     import os
-    import warnings
 
     package_ver = "m1"
     payload_ver = os.getenv("REZ_DELIVER_PKG_PAYLOAD_VER")
@@ -22,19 +21,16 @@ def version():
         )
 
     else:
-        warnings.warn("Package payload version not set.")
         return "0.0.0-" + package_ver
 
 
 def pre_build_commands():
     env = globals()["env"]
-    this = globals()["this"]
     expandvars = globals()["expandvars"]
     optionvars = globals()["optionvars"]
 
     feature = expandvars("{this.name}.dev")
     env.REZ_BUILD_PKG_PAYLOAD_ROOT = optionvars(feature, default="")
-    env.GITHUB_REPO = this.github_repo
 
 
 requires = []

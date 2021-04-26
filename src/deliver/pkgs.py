@@ -19,8 +19,6 @@ from rez.utils.logging_ import logger as rez_logger
 from rez.packages import get_latest_package_from_string
 from rez.package_repository import package_repository_manager
 
-from . import git
-
 
 # silencing rez logger, e.g. on package preprocessing
 rez_logger.setLevel(logging.WARNING)
@@ -104,13 +102,20 @@ class BindPkgRepo(Repo):
 
 class DevPkgRepo(Repo):
 
-    def load_dev_packages(self, family):
+    def git_tags(self, url):
+        args = ["git", "ls-remote", "--tags", url]
+        output = subprocess.check_output(args, universal_newlines=True)
+        for line in output.splitlines():
+            yield line.split("refs/tags/")[-1]
+
+    def generate_dev_packages(self, family):
         for package in family.iter_packages():
             pkg_path = os.path.dirname(package.uri)
 
-            github_repo = package.data.get("github_repo")
-            if github_repo:
-                for ver_tag in git.get_released_tags(github_repo):
+            git_url = package.data.get("git_url")
+            if git_url:
+                for ver_tag in self.git_tags(git_url):
+
                     os.environ["REZ_DELIVER_PKG_PAYLOAD_VER"] = ver_tag
                     yield DeveloperPackage.from_path(pkg_path)
 
@@ -122,7 +127,7 @@ class DevPkgRepo(Repo):
             name = family.name  # package dir name
             versions = dict()
 
-            for dev_package in self.load_dev_packages(family):
+            for dev_package in self.generate_dev_packages(family):
                 data = dev_package.data.copy()
 
                 if data.get("_DEV_SRC") != "_REZ_BIND":
