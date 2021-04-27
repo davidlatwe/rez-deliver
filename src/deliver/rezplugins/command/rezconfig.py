@@ -12,10 +12,4 @@ deliver = {
 
     "rez_source_path": "~/rez/source",
     "rez_source_git": "https://github.com/nerdvegas/rez.git",
-
-    # Cache dev packages into a JSON file for quicker startup on next launch.
-    "cache_dev_packages": False,
-
-    # Auto update dev packages cache after given days
-    "dev_packages_cache_days": 7,
 }

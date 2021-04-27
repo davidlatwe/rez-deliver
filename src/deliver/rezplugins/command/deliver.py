@@ -85,8 +85,6 @@ class DeliverCommand(Command):
     schema_dict = {
         "dev_repository_roots": list,
         "rez_source_path": str,
-        "cache_dev_packages": bool,
-        "dev_packages_cache_days": int,
     }
 
     @classmethod
