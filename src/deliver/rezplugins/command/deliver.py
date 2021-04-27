@@ -18,12 +18,15 @@ def setup_parser(parser, completions=False):
                         help="Deploy package as install. Packages will be "
                              "installed to a custom path if path given, or "
                              "to Rez local_packages_path by default.")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="List out all packages that will be deployed "
+                             "and exit.")
     parser.add_argument("-l", "--list", action="store_true",
                         help="List out packages that can be deployed. If "
                              "`packages` given, versions will be listed.")
     parser.add_argument("-y", "--yes", action="store_true",
                         help="Yes to all.")
-    parser.add_argument("--gui", action="store_true",
+    parser.add_argument("-G", "--gui", action="store_true",
                         help="Launch GUI.")
     parser.add_argument("--version", action="store_true",
                         help="Print out version of this plugin command.")
@@ -41,8 +44,8 @@ def command(opts, parser=None, extra_arg_groups=None):
         sys.exit(print_info())
 
     if opts.gui:
-        from deliver.gui import cli as gui
-        return gui.main()
+        from deliver.gui import app
+        return app.main()
 
     if opts.list:
         cli.list_developer_packages(opts.packages)
@@ -68,9 +71,10 @@ def command(opts, parser=None, extra_arg_groups=None):
         else:
             raise Exception("Undefined behavior.")
 
-        if cli.deploy_packages(opts.packages, path, opts.yes):
-            print("=" * 30)
-            print("SUCCESS!\n")
+        if cli.deploy_packages(opts.packages, path, opts.dry_run, opts.yes):
+            if not opts.dry_run:
+                print("=" * 30)
+                print("SUCCESS!\n")
 
     else:
         print("Please name at least one package to deploy. Use --list to "

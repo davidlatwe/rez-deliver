@@ -182,6 +182,10 @@ class DevPkgRepo(Repo):
                 in self.iter_dev_packages()
             }
 
+    def iter_package_names(self):
+        for family in iter_package_families(paths=[self._root]):
+            yield family.name  # package dir name
+
 
 class DevRepoManager(object):
 
@@ -242,10 +246,16 @@ class DevRepoManager(object):
                                   paths=self.paths)
 
     def iter_package_families(self):
-        if not self._all_loaded:
-            self.load()
         for family in iter_package_families(paths=self.paths):
             yield family
+
+    def iter_package_names(self):
+        seen = set()
+        for repo in self._dev_repos:
+            for name in repo.iter_package_names():
+                if name not in seen:
+                    yield name
+                seen.add(name)
 
 
 class PackageInstaller(object):

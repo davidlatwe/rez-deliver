@@ -2,36 +2,35 @@
 from . import pkgs
 
 
-def list_developer_packages(requests):
+def list_developer_packages(requests=None):
 
     dev_repo = pkgs.DevRepoManager()
-    dev_repo.load()
 
-    requests = requests or []
+    if not requests:
+        # list all developer package family name
+        names = sorted(dev_repo.iter_package_names())
+        for n in names:
+            print(n)
 
-    names = list()
-    for request in requests:
-        pkg = dev_repo.find(request)
-        if pkg is None:
-            print("Package not found in this repository: %s" % request)
-            continue
-        names.append(pkg.name)
-
-    print("\nPackages available in this repository:")
-    print("=" * 30)
-
-    for family in dev_repo.iter_package_families():
-        if not requests:
-            print(family.name)
-        else:
-            if family.name not in names:
+    else:
+        names = list()
+        for request in requests:
+            pkg = dev_repo.find(request)
+            if pkg is None:
+                print("Package not found in this repository: %s" % request)
                 continue
+            names.append(pkg.name)
 
-            for package in family.iter_packages():
-                print(package.qualified_name)
+        print("\nPackages available in this repository:")
+        print("=" * 30)
+
+        for family in dev_repo.iter_package_families():
+            if family.name in names:
+                for package in family.iter_packages():
+                    print(package.qualified_name)
 
 
-def deploy_packages(requests, path, yes=False):
+def deploy_packages(requests, path, dry_run=False, yes=False):
 
     dev_repo = pkgs.DevRepoManager()
     installer = pkgs.PackageInstaller(dev_repo)
@@ -43,16 +42,21 @@ def deploy_packages(requests, path, yes=False):
 
     manifest = installer.manifest()
 
-    names = [("%s" % n) + ("" if i is None else ("[%s]" % i))
-             for n, i in manifest.keys()]
-    _max_name_len = len(max(names))
+    names = [
+        ("%s" % name) + ("" if variant_ind is None else ("[%s]" % variant_ind))
+        for name, variant_ind in manifest.keys()
+    ]
+    _max_name_len = max(len(n) for n in names)
 
     print("\nFollowing packages will be deployed:")
     print("-" * 70)
     for i, (exists, src) in enumerate(manifest.values()):
-        template = " %%-%ds -> %%s" % _max_name_len
+        template = " %%-%ds | %%s" % _max_name_len
         line = template % (names[i], "(installed)" if exists else src)
         print(line)
+
+    if dry_run:
+        return
 
     proceed = yes or confirm("Do you want to continue ? [Y/n]\n")
     if not proceed:

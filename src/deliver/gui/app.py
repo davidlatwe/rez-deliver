@@ -1,6 +1,11 @@
 
-from .vendor.Qt5 import QtWidgets
-from . import view
+import os
+import sys
+from .vendor.Qt5 import QtCore, QtWidgets
+from . import view, resources, control
+
+
+APP_NAME = "Deliver"
 
 
 class Window(QtWidgets.QWidget):
@@ -45,3 +50,33 @@ class Window(QtWidgets.QWidget):
         is_variant = variant_index >= 0
         package = self._ctrl.find_dev_package(pkg_name)
         self._pages["pkgInfo"].parse_package(package, is_variant)
+
+
+def init():
+    if sys.platform == "darwin":
+        os.environ["QT_MAC_WANTS_LAYER"] = "1"  # MacOS BigSur
+
+    qapp = QtWidgets.QApplication.instance() or QtWidgets.QApplication([])
+
+    storage = QtCore.QSettings(QtCore.QSettings.IniFormat,
+                               QtCore.QSettings.UserScope,
+                               APP_NAME, "preferences")
+    print("Preference file: %s" % storage.fileName())
+
+    resources.load_themes()
+    qss = resources.load_theme(name=storage.value("theme"))
+
+    ctrl = control.Controller(storage)
+    window = Window(ctrl=ctrl)
+    window.setStyleSheet(qss)
+
+    return qapp, window, ctrl
+
+
+def main():
+    qapp, window, ctrl = init()
+    window.show()
+
+    ctrl.defer_search_packages(on_time=200)
+
+    return qapp.exec_()
