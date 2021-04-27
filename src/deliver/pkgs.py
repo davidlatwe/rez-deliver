@@ -180,7 +180,7 @@ class DevPkgRepo(Repo):
 
             for req_str in requires:
                 req = PackageRequest(req_str)
-                if req.name in self.mem_repo.data:
+                if req.ephemeral or req.name in self.mem_repo.data:
                     continue
                 self.load(name=req.name)
 
