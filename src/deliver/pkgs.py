@@ -108,9 +108,13 @@ class DevPkgRepo(Repo):
 
     def _git_tags(self, url):
         args = ["git", "ls-remote", "--tags", url]
-        output = subprocess.check_output(args, universal_newlines=True)
-        for line in output.splitlines():
-            yield line.split("refs/tags/")[-1]
+        try:
+            output = subprocess.check_output(args, universal_newlines=True)
+        except subprocess.CalledProcessError:
+            yield "__git_failed__"
+        else:
+            for line in output.splitlines():
+                yield line.split("refs/tags/")[-1]
 
     def _generate_dev_packages(self, package):
         pkg_path = os.path.dirname(package.uri)
@@ -119,9 +123,8 @@ class DevPkgRepo(Repo):
         if git_url:
             for ver_tag in self._git_tags(git_url):
                 # generate versions from git tags
-                os.environ["REZ_DELIVER_PKG_PAYLOAD_VER"] = ver_tag
-                yield DeveloperPackage.from_path(pkg_path)
-
+                with temp_env("REZ_DELIVER_PKG_PAYLOAD_VER", ver_tag):
+                    yield DeveloperPackage.from_path(pkg_path)
         else:
             yield DeveloperPackage.from_path(pkg_path)
 
@@ -366,7 +369,7 @@ class PackageInstaller(object):
 
         if not os.path.isdir(rezsrc):
             args = ["git", "clone", "--single-branch", rezgit, rezsrc]
-            subprocess.check_call(args)
+            self._run_command(args)
 
         rez_install = os.path.join(rezsrc, "install.py")
         dev_pkg = self.dev_repo.find("rez")
@@ -437,6 +440,16 @@ class PackageInstaller(object):
     def _run_command(self, cmd_args, **kwargs):
         print("Running command:\n    %s\n" % cmd_args)
         subprocess.check_call(cmd_args, **kwargs)
+
+
+@contextlib.contextmanager
+def temp_env(key, value):
+    try:
+        os.environ[key] = value
+        yield
+    finally:
+        if key in os.environ:
+            del os.environ[key]
 
 
 @contextlib.contextmanager
