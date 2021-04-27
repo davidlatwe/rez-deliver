@@ -118,15 +118,21 @@ class DevPkgRepo(Repo):
 
     def _generate_dev_packages(self, package):
         pkg_path = os.path.dirname(package.uri)
-
-        git_url = package.data.get("git_url")
-        if git_url:
-            for ver_tag in self._git_tags(git_url):
-                # generate versions from git tags
-                with temp_env("REZ_DELIVER_PKG_PAYLOAD_VER", ver_tag):
-                    yield DeveloperPackage.from_path(pkg_path)
-        else:
-            yield DeveloperPackage.from_path(pkg_path)
+        with os_chdir(pkg_path):
+            # If we don't change cwd to package dir, dev package may not be
+            # evaluated correctly.
+            # For example, `git shortlog` is often being used to get package
+            # authors, which will not work and hang the process with message
+            # "reading log message from standard input", if cwd is not (in)
+            # a git repository.
+            git_url = package.data.get("git_url")
+            if git_url:
+                for ver_tag in self._git_tags(git_url):
+                    # generate versions from git tags
+                    with temp_env("REZ_DELIVER_PKG_PAYLOAD_VER", ver_tag):
+                        yield DeveloperPackage.from_path(pkg_path)
+            else:
+                yield DeveloperPackage.from_path(pkg_path)
 
     def generate_dev_packages(self, family):
         for package in family.iter_packages():
@@ -450,6 +456,16 @@ def temp_env(key, value):
     finally:
         if key in os.environ:
             del os.environ[key]
+
+
+@contextlib.contextmanager
+def os_chdir(path):
+    cwd = os.getcwd()
+    try:
+        os.chdir(path)
+        yield
+    finally:
+        os.chdir(cwd)
 
 
 @contextlib.contextmanager
