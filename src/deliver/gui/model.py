@@ -1,6 +1,7 @@
 
 from .vendor.Qt5 import QtCore, QtGui
 from . import common
+from ..pkgs import PackageInstaller
 
 QtCheckState = QtCore.Qt.CheckState
 
@@ -217,6 +218,12 @@ class PackageManifestModel(common.model.AbstractTableModel):
         "variant",
     ]
 
+    Status = {
+        PackageInstaller.NotInstalled: "",
+        PackageInstaller.Installed: "installed",
+        PackageInstaller.ResolveFailed: "failed",
+    }
+
     def clear(self):
         self.beginResetModel()
         self.items.clear()
@@ -260,7 +267,7 @@ class PackageManifestModel(common.model.AbstractTableModel):
             return None
 
         if col == 0 and role == QtCore.Qt.DisplayRole:
-            return data["status"]
+            return self.Status[data["status"]]
 
         if col == 1 and role == QtCore.Qt.DisplayRole:
             return data["name"]

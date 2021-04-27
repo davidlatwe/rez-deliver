@@ -18,6 +18,7 @@ from rez.developer_package import DeveloperPackage
 from rez.utils.logging_ import logger as rez_logger
 from rez.packages import get_latest_package_from_string, get_latest_package
 from rez.package_repository import package_repository_manager
+from rez.exceptions import PackageNotFoundError
 
 
 # silencing rez logger, e.g. on package preprocessing
@@ -268,6 +269,9 @@ class DevRepoManager(object):
 
 
 class PackageInstaller(object):
+    NotInstalled = 0
+    Installed = 1
+    ResolveFailed = 2
 
     def __init__(self, dev_repo, rezsrc=None):
         rezsrc = expand_path(rezsrc or deliverconfig.rez_source_path)
@@ -310,8 +314,9 @@ class PackageInstaller(object):
             pass
 
     def run_iter(self):
-        for (q_name, v_index), (exists, src) in self._requirements.items():
-            if exists:
+        for (q_name, v_index), (status, src) in self._requirements.items():
+            if status != self.NotInstalled:
+                # TODO: prompt warning if the status is `ResolveFailed`
                 continue
 
             name = q_name.split("-", 1)[0]
@@ -358,13 +363,24 @@ class PackageInstaller(object):
                 continue
 
             exists = variant.variant_requires in pkg_variants_req
+            status = self.Installed if exists else self.NotInstalled
 
-            context = self._build_context(variant)
-            for pkg in context.resolved_packages:
-                self.resolve(request=pkg.qualified_package_name,
-                             variant_index=pkg.index)
+            try:
+                context = self._build_context(variant)
+            except PackageNotFoundError as e:
+                print(e)
+                status = self.ResolveFailed
 
-            self._requirements[(name, variant.index)] = (exists, source)
+            else:
+                if not context.success:
+                    context.print_info()
+                    status = self.ResolveFailed
+                else:
+                    for pkg in context.resolved_packages:
+                        self.resolve(request=pkg.qualified_package_name,
+                                     variant_index=pkg.index)
+
+            self._requirements[(name, variant.index)] = (status, source)
 
     def _install_rez_as_package(self):
         """Use Rez's install script to deploy rez as package
