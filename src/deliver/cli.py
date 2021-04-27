@@ -34,8 +34,6 @@ def list_developer_packages(requests):
 def deploy_packages(requests, path, yes=False):
 
     dev_repo = pkgs.DevRepoManager()
-    dev_repo.load()
-
     installer = pkgs.PackageInstaller(dev_repo)
     installer.target(path)
 

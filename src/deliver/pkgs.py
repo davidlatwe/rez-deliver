@@ -156,10 +156,24 @@ class DevPkgRepo(Repo):
     def load(self, name=None):
         """Load dev-packages from filesystem into memory repository"""
         if name:
-            # partial load
+            # lazy load, recursively
+            requires = []
             for version, data in self.get_dev_package_versions(name):
-                # parse all "requires"
-                pass
+                if name not in self.mem_repo.data:
+                    self.mem_repo.data[name] = dict()
+                self.mem_repo.data[name][version] = data
+
+                requires += data.get("requires", [])
+                requires += data.get("build_requires", [])
+                requires += data.get("private_build_requires", [])
+                for variant in data.get("variants", []):
+                    requires += variant
+
+            for req_str in requires:
+                req = PackageRequest(req_str)
+                if req.name in self.mem_repo.data:
+                    continue
+                self.load(name=req.name)
 
         else:
             # full load
