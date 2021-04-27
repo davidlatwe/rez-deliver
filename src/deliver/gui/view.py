@@ -18,6 +18,15 @@ class PackageBookTreeView(common.view.VerticalExtendedTreeView):
         self.setAlternatingRowColors(True)
         self.sortByColumn(0, QtCore.Qt.AscendingOrder)
 
+    def mousePressEvent(self, event):
+        index = self.indexAt(event.pos())
+        if not index.isValid():
+            # deselects on clicking on an empty area in the view
+            self.setCurrentIndex(QtCore.QModelIndex())
+            self.clearSelection()
+
+        return super(PackageBookTreeView, self).mousePressEvent(event)
+
 
 class PackageBookTabBar(common.view.VerticalDocTabBar):
     def __init__(self, parent=None):
@@ -222,8 +231,9 @@ class PackageDataView(QtWidgets.QWidget):
         self._widgets = widgets
 
     def parse_package(self, package, is_variant):
-        data = package.data
-        self._widgets["name"].setText(data["name"])
+        data = package.data if package else dict()
+
+        self._widgets["name"].setText(data.get("name", ""))
         self._widgets["version"].setText(data.get("version", ""))
         self._widgets["source"].setText(data.get("__source__", ""))
         self._widgets["description"].setText(data.get("description", ""))

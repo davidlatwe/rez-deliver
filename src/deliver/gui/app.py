@@ -47,8 +47,13 @@ class Window(QtWidgets.QWidget):
         self._pages["install"].init()
 
     def on_package_selected(self, pkg_name, variant_index):
-        is_variant = variant_index >= 0
-        package = self._ctrl.find_dev_package(pkg_name)
+        if pkg_name:
+            is_variant = variant_index >= 0
+            package = self._ctrl.find_dev_package(pkg_name)
+        else:
+            is_variant = False
+            package = None
+
         self._pages["pkgInfo"].parse_package(package, is_variant)
 
 
