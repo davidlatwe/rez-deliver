@@ -118,7 +118,7 @@ class DevPkgRepo(Repo):
         git_url = package.data.get("git_url")
         if git_url:
             for ver_tag in self._git_tags(git_url):
-
+                # generate versions from git tags
                 os.environ["REZ_DELIVER_PKG_PAYLOAD_VER"] = ver_tag
                 yield DeveloperPackage.from_path(pkg_path)
 
