@@ -11,7 +11,6 @@ from rez.system import system
 from rez.package_maker import PackageMaker
 from rez.vendor.version.version import Version
 from rez.packages import iter_package_families
-from rez.exceptions import PackageNotFoundError
 from rez.utils.formatting import PackageRequest
 from rez.resolved_context import ResolvedContext
 from rez.developer_package import DeveloperPackage
