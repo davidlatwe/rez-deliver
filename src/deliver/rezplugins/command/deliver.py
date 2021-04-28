@@ -84,7 +84,6 @@ def command(opts, parser=None, extra_arg_groups=None):
 class DeliverCommand(Command):
     schema_dict = {
         "dev_repository_roots": list,
-        "rez_source_path": str,
     }
 
     @classmethod

@@ -1,15 +1,17 @@
 
 import os
+import sys
+import shutil
 import logging
 import functools
 import subprocess
 import contextlib
+from tempfile import mkdtemp
 from collections import OrderedDict
 
 from rez.config import config as rezconfig
 from rez.system import system
-from rez.package_maker import PackageMaker
-from rez.vendor.version.version import Version
+from rez.package_maker import PackageMaker, make_package
 from rez.packages import iter_package_families
 from rez.utils.formatting import PackageRequest
 from rez.resolved_context import ResolvedContext
@@ -17,6 +19,7 @@ from rez.developer_package import DeveloperPackage
 from rez.utils.logging_ import logger as rez_logger
 from rez.packages import get_latest_package_from_string, get_latest_package
 from rez.package_repository import package_repository_manager
+from rez.utils.lint_helper import env
 from rez.exceptions import PackageNotFoundError
 
 
@@ -52,7 +55,6 @@ MainMemoryRepo
 
 
 class Repo(object):
-    BIND = "rez:bind"
 
     def __init__(self, root):
         self._root = root
@@ -74,33 +76,31 @@ class Repo(object):
         return self._root
 
 
-class BindPkgRepo(Repo):
+class MakePkgRepo(Repo):
 
     def __init__(self):
-        Repo.__init__(self, self.BIND)
+        Repo.__init__(self, root="rez:package_maker")
 
     @property
-    def root(self):
-        return self.mem_uid
-
-    @property
-    def bindings(self):
+    def makers(self):
         return {
             "os": pkg_os,
             "arch": pkg_arch,
             "platform": pkg_platform,
+            "rez": pkg_rez,
         }
 
-    def iter_bind_packages(self):
-        for name, maker in self.bindings.items():
-            data = maker().data.copy()
-            data["__source__"] = self._root
+    def iter_make_packages(self):
+        for name, func in self.makers.items():
+            maker = func()
+            maker.__source__ = self.root
+            data = maker.get_package().data
             yield name, {data["version"]: data}
 
     def load(self):
         self.mem_repo.data = {
             name: versions for name, versions
-            in self.iter_bind_packages()
+            in self.iter_make_packages()
         }
 
 
@@ -204,11 +204,11 @@ class DevRepoManager(object):
             DevPkgRepo(root=expand_path(root))
             for root in deliverconfig.dev_repository_roots
         ]
-        self._bind_repo = BindPkgRepo()
+        self._maker_repo = MakePkgRepo()
 
     @property
-    def binds(self):
-        return self._bind_repo
+    def maker_root(self):
+        return self._maker_repo.root
 
     @property
     def paths(self):
@@ -216,18 +216,21 @@ class DevRepoManager(object):
             repo.mem_uid
             for repo in self._dev_repos
         ]
-        mem_paths.append(self._bind_repo.mem_uid)
+        mem_paths.append(self._maker_repo.mem_uid)
 
         return mem_paths
 
-    def load(self, name=None):
-        self._bind_repo.load()
+    def get_maker_made_package(self, name):
+        paths = [self._maker_repo.mem_uid]
+        return get_latest_package_from_string(name, paths=paths)
 
-        dev_paths = [
-            repo.root
-            for repo in self._dev_repos
-        ]
-        dev_paths.append(self._bind_repo.root)
+    def load(self, name=None):
+        self._maker_repo.load()  # this should be fast, load them all
+
+        dev_paths = [repo.root for repo in self._dev_repos]
+        dev_paths.append(self._maker_repo.mem_uid)
+        # Note that the maker repo doesn't have filesystem based package,
+        # use memory path `mem_uid` as root instead.
 
         with override_config({
             # Append `dev_paths` into `config.packages_path` so the requires
@@ -272,13 +275,9 @@ class PackageInstaller(object):
     Installed = 1
     ResolveFailed = 2
 
-    def __init__(self, dev_repo, rezsrc=None):
-        rezsrc = expand_path(rezsrc or deliverconfig.rez_source_path)
-
+    def __init__(self, dev_repo):
         self.release = False
         self.dev_repo = dev_repo
-        self.rezsrc_path = rezsrc
-        self.rezsrc_git = deliverconfig.rez_source_git
         self._requirements = OrderedDict()
 
     @property
@@ -318,12 +317,8 @@ class PackageInstaller(object):
                 # TODO: prompt warning if the status is `ResolveFailed`
                 continue
 
-            name = q_name.split("-", 1)[0]
-
-            if name == "rez":
-                self._install_rez_as_package()
-            elif name in self.dev_repo.binds.bindings:
-                self._bind(name)
+            if src == self.dev_repo.maker_root:
+                self._make(q_name, variant=v_index)
             else:
                 self._build(os.path.dirname(src), variant=v_index)
 
@@ -381,34 +376,6 @@ class PackageInstaller(object):
 
             self._requirements[(name, variant.index)] = (status, source)
 
-    def _install_rez_as_package(self):
-        """Use Rez's install script to deploy rez as package
-        """
-        rezgit = self.rezsrc_git
-        rezsrc = self.rezsrc_path
-        deploy_path = self.deploy_path
-
-        if not os.path.isdir(rezsrc):
-            args = ["git", "clone", "--single-branch", rezgit, rezsrc]
-            self._run_command(args)
-
-        rez_install = os.path.join(rezsrc, "install.py")
-        dev_pkg = self.dev_repo.find("rez")
-
-        print("Installing Rez as package..")
-
-        clear_repo_cache(deploy_path)
-
-        for variant in dev_pkg.iter_variants():
-            print("Variant: ", variant)
-
-            context = self._build_context(variant)
-            context.execute_shell(
-                command=["python", rez_install, "-v", "-p", deploy_path],
-                block=True,
-                cwd=rezsrc,
-            )
-
     def _build_context(self, variant):
         paths = self.installed_packages_path + self.dev_repo.paths
         implicit_pkgs = list(map(PackageRequest, rezconfig.implicit_packages))
@@ -418,24 +385,13 @@ class PackageInstaller(object):
                                building=True,
                                package_paths=paths)
 
-    def _bind(self, name):
-        pkg = self.find_installed(name)
-        if pkg is not None:
-            # installed
-            return
-
+    def _make(self, name, variant=None):
         deploy_path = self.deploy_path
-        env = os.environ.copy()
-
         if not os.path.isdir(deploy_path):
             os.makedirs(deploy_path)
 
-        if self.release:
-            env["REZ_RELEASE_PACKAGES_PATH"] = deploy_path
-            self._run_command(["rez-bind", "--release", name], env=env)
-        else:
-            env["REZ_LOCAL_PACKAGES_PATH"] = deploy_path
-            self._run_command(["rez-bind", name])
+        made_pkg = self.dev_repo.get_maker_made_package(name)
+        made_pkg.__install__(path=deploy_path)
 
         clear_repo_cache(deploy_path)
 
@@ -508,23 +464,60 @@ def clear_repo_cache(path):
     fs_repo.get_family.cache_clear()
 
 
-def make_package(name, data):
-    maker = PackageMaker(name, data=data, package_cls=DeveloperPackage)
-    return maker.get_package()
-
-
 def pkg_os():
-    data = {"version": Version(system.os),
-            "requires": ["platform-%s" % system.platform,
-                         "arch-%s" % system.arch]}
-    return make_package("os", data=data)
+    maker = PackageMaker("os", package_cls=DeveloperPackage)
+    maker.version = system.os
+    maker.requires = ["platform-%s" % system.platform,
+                      "arch-%s" % system.arch]
+
+    maker.__install__ = None
+    return maker
 
 
 def pkg_arch():
-    data = {"version": Version(system.arch)}
-    return make_package("arch", data=data)
+    maker = PackageMaker("arch", package_cls=DeveloperPackage)
+    maker.version = system.arch
+
+    maker.__install__ = None
+    return maker
 
 
 def pkg_platform():
-    data = {"version": Version(system.platform)}
-    return make_package("platform", data=data)
+    maker = PackageMaker("platform", package_cls=DeveloperPackage)
+    maker.version = system.platform
+
+    maker.__install__ = None
+    return maker
+
+
+def pkg_rez():
+    def install_rez_from_pip(repo_path):
+        def commands():
+            env.PYTHONPATH.append('{this.root}')
+
+        def make_root(variant, root):
+            # pip install rez to temp
+            tmpdir = mkdtemp(prefix="rez-install-")
+            subprocess.check_call([sys.executable, "-m",
+                                   "pip", "install", "rez",
+                                   "--target", tmpdir])
+            # copy lib
+            rez_path = os.path.join(tmpdir, "rez")
+            rezplugins_path = os.path.join(tmpdir, "rezplugins")
+
+            shutil.copytree(rez_path, os.path.join(root, "rez"))
+            shutil.copytree(rezplugins_path, os.path.join(root, "rezplugins"))
+
+        variant = system.variant
+        variant.append("python-{0.major}.{0.minor}".format(sys.version_info))
+
+        with make_package("rez", repo_path, make_root=make_root) as pkg:
+            pkg.version = rez.__version__
+            pkg.commands = commands
+            pkg.variants = [variant]
+
+    maker = PackageMaker("rez", package_cls=DeveloperPackage)
+    maker.version = "pip.latest"
+
+    maker.__install__ = install_rez_from_pip
+    return maker

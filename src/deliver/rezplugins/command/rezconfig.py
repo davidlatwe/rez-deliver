@@ -9,7 +9,4 @@ deliver = {
         __os.path.join(__root, "test", "packages"),
         __os.path.join(__root, "test", "others"),
     ],
-
-    "rez_source_path": "~/rez/source",
-    "rez_source_git": "https://github.com/nerdvegas/rez.git",
 }
