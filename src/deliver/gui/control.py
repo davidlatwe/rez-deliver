@@ -1,7 +1,7 @@
 
 from rez.config import config as rezconfig
 from .vendor.Qt5 import QtCore
-from . import model
+from . import model, util
 from .. import pkgs
 
 
@@ -110,14 +110,12 @@ class Controller(QtCore.QObject):
         self._models["pkgManifest"].load(installer.manifest())
 
     def on_installed(self):
-        # Unlike CLI mode that installer runs right after resolve, any package
-        # change may happen e.g. deletion, after manifested in GUI mode. So we
-        # re-resolve requests again here just in case.
-        self.on_manifested()
-        installer = self._state["installer"]
-        for installed in installer.run_iter():
-            qualified_name, variant_index = installed
-            self._models["pkgManifest"].installed(qualified_name, variant_index)
+        def install():
+            installer = self._state["installer"]
+            for requested in installer.run_iter():
+                self._models["pkgManifest"].installed(requested)
+
+        util.defer(install)
 
     def iter_dev_packages(self):
         dev_repo = self._state["devRepoRoot"]

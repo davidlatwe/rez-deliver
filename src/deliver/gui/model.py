@@ -232,11 +232,12 @@ class PackageManifestModel(common.model.AbstractTableModel):
         self.beginResetModel()
         self.items.clear()
 
-        for (q_name, v_index), (exists, src) in manifest.items():
+        for requested in manifest:
             self.items.append({
-                "status": exists,
-                "name": q_name,
-                "variant": v_index,
+                "status": requested.status,
+                "name": requested.name,
+                "variant": requested.index,
+                # TODO: requested.depended
             })
 
         self.endResetModel()
@@ -249,9 +250,9 @@ class PackageManifestModel(common.model.AbstractTableModel):
         row = self.items.index(self.findVariant(name, variant))
         return self.createIndex(row, column, QtCore.QModelIndex())
 
-    def installed(self, name, variant):
-        index = self.findVariantIndex(name, variant)
-        self.setData(index, True)
+    def installed(self, requested):
+        index = self.findVariantIndex(requested.name, requested.index)
+        self.setData(index, requested.status)
 
     def data(self, index, role=QtCore.Qt.DisplayRole):
         if not index.isValid():

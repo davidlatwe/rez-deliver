@@ -9,7 +9,6 @@ import functools
 import subprocess
 import contextlib
 from tempfile import mkdtemp
-from collections import OrderedDict
 try:
     from importlib.metadata import Distribution
 except ImportError:
@@ -294,6 +293,20 @@ class DevRepoManager(object):
                 seen.add(name)
 
 
+class Requested(object):
+    __slots__ = ("name", "index", "source", "status", "depended")
+
+    def __init__(self, name, index, source, status, depended=None):
+        self.name = name
+        self.index = index
+        self.source = source
+        self.status = status
+        self.depended = depended or []
+
+    def __eq__(self, other):
+        return other == (self.name, self.index)
+
+
 class PackageInstaller(object):
     NotInstalled = 0
     Installed = 1
@@ -302,7 +315,7 @@ class PackageInstaller(object):
     def __init__(self, dev_repo):
         self.release = False
         self.dev_repo = dev_repo
-        self._requirements = OrderedDict()
+        self._requirements = list()
 
     @property
     def installed_packages_path(self):
@@ -326,33 +339,35 @@ class PackageInstaller(object):
         self.reset()
 
     def reset(self):
-        self._requirements.clear()
+        self._requirements = []
 
     def manifest(self):
-        return self._requirements.copy()
+        return self._requirements[:]
 
     def run(self):
         for _ in self.run_iter():
             pass
 
     def run_iter(self):
-        for (q_name, v_index), (status, src) in self._requirements.items():
-            if status != self.NotInstalled:
+        for requested in self._requirements:
+            if requested.status != self.NotInstalled:
                 # TODO: prompt warning if the status is `ResolveFailed`
                 continue
 
-            if src == self.dev_repo.maker_root:
-                self._make(q_name, variant=v_index)
+            if requested.source == self.dev_repo.maker_root:
+                self._make(requested.name,
+                           variant=requested.index)
             else:
-                self._build(os.path.dirname(src), variant=v_index)
+                self._build(os.path.dirname(requested.name),
+                            variant=requested.index)
 
-            yield q_name, v_index
+            yield requested
 
     def find_installed(self, name):
         paths = self.installed_packages_path
         return get_latest_package_from_string(name, paths=paths)
 
-    def resolve(self, request, variant_index=None):
+    def resolve(self, request, variant_index=None, depended=None):
         """"""
         develop = self.dev_repo.find(request)
         package = self.find_installed(request)
@@ -379,26 +394,40 @@ class PackageInstaller(object):
         for variant in variants:
             if variant_index is not None and variant_index != variant.index:
                 continue
-
+            # create/get request item
             exists = variant.variant_requires in pkg_variants_req
             status = self.Installed if exists else self.NotInstalled
+            try:
+                req_id = self._requirements.index((name, variant.index))
+            except ValueError:
+                req_id = None
+                requested = Requested(name, variant.index, source, status)
+            else:
+                requested = self._requirements[req_id]
+                requested.status = status
 
+            if depended:
+                requested.depended.append(depended)
+
+            # solve
             try:
                 context = self._build_context(variant)
             except PackageNotFoundError as e:
                 print(e)
-                status = self.ResolveFailed
+                requested.status = self.ResolveFailed
 
             else:
                 if not context.success:
                     context.print_info()
-                    status = self.ResolveFailed
+                    requested.status = self.ResolveFailed
                 else:
                     for pkg in context.resolved_packages:
                         self.resolve(request=pkg.qualified_package_name,
-                                     variant_index=pkg.index)
+                                     variant_index=pkg.index,
+                                     depended=requested)
 
-            self._requirements[(name, variant.index)] = (status, source)
+            if req_id is None:
+                self._requirements.append(requested)
 
     def _build_context(self, variant):
         paths = self.installed_packages_path + self.dev_repo.paths
