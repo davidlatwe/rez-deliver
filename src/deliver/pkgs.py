@@ -376,18 +376,17 @@ class PackageInstaller(object):
             raise PackageNotFoundError("%s not found in develop repository "
                                        "nor in installed package paths."
                                        % request)
-        if develop is None:
-            name = package.qualified_name
-            variants = package.iter_variants()
-            source = package.uri
-        else:
+        if package is None:
+            # use developer package
             name = develop.qualified_name
             variants = develop.iter_variants()
             source = develop.data["__source__"]
-
-        if package is None:
             pkg_variants_req = []
         else:
+            # use installed package
+            name = package.qualified_name
+            variants = package.iter_variants()
+            source = package.uri
             pkg_variants_req = [v.variant_requires
                                 for v in package.iter_variants()]
 
@@ -422,6 +421,10 @@ class PackageInstaller(object):
                     requested.status = self.ResolveFailed
                 else:
                     for pkg in context.resolved_packages:
+                        if (pkg.qualified_package_name, pkg.index) in \
+                                self._requirements:
+                            continue
+
                         self.resolve(request=pkg.qualified_package_name,
                                      variant_index=pkg.index,
                                      depended=requested)
