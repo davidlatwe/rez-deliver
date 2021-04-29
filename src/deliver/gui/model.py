@@ -22,7 +22,6 @@ class PackageBookModel(common.model.AbstractTreeModel):
     CompletionColumn = 0
     Headers = [
         "name",
-        "tools",
     ]
 
     def __init__(self, parent=None):
