@@ -1,13 +1,19 @@
 
 import os
+import re
 import sys
 import shutil
 import logging
+import requests
 import functools
 import subprocess
 import contextlib
 from tempfile import mkdtemp
 from collections import OrderedDict
+try:
+    from importlib.metadata import Distribution
+except ImportError:
+    from importlib_metadata import Distribution
 
 from rez.config import config as rezconfig
 from rez.system import system
@@ -19,6 +25,7 @@ from rez.developer_package import DeveloperPackage
 from rez.utils.logging_ import logger as rez_logger
 from rez.packages import get_latest_package_from_string, get_latest_package
 from rez.package_repository import package_repository_manager
+from rez.vendor.version.version import Version, VersionError
 from rez.utils.lint_helper import env
 from rez.exceptions import PackageNotFoundError
 
@@ -391,7 +398,7 @@ class PackageInstaller(object):
             os.makedirs(deploy_path)
 
         made_pkg = self.dev_repo.get_maker_made_package(name)
-        made_pkg.__install__(path=deploy_path)
+        made_pkg.__install__(deploy_path)
 
         clear_repo_cache(deploy_path)
 
@@ -465,59 +472,117 @@ def clear_repo_cache(path):
 
 
 def pkg_os():
-    maker = PackageMaker("os", package_cls=DeveloperPackage)
-    maker.version = system.os
-    maker.requires = ["platform-%s" % system.platform,
-                      "arch-%s" % system.arch]
+    version = system.os
+    requires = ["platform-%s" % system.platform,
+                "arch-%s" % system.arch]
 
-    maker.__install__ = None
+    def install_os(repo_path):
+        with make_package("os", repo_path) as pkg:
+            pkg.version = version
+            pkg.requires = requires
+
+    maker = PackageMaker("os", package_cls=DeveloperPackage)
+    maker.version = version
+    maker.requires = requires
+    maker.__install__ = install_os
+
     return maker
 
 
 def pkg_arch():
-    maker = PackageMaker("arch", package_cls=DeveloperPackage)
-    maker.version = system.arch
+    version = system.arch
 
-    maker.__install__ = None
+    def install_arch(repo_path):
+        with make_package("arch", repo_path) as pkg:
+            pkg.version = version
+
+    maker = PackageMaker("arch", package_cls=DeveloperPackage)
+    maker.version = version
+    maker.__install__ = install_arch
+
     return maker
 
 
 def pkg_platform():
-    maker = PackageMaker("platform", package_cls=DeveloperPackage)
-    maker.version = system.platform
+    version = system.platform
 
-    maker.__install__ = None
+    def install_platform(repo_path):
+        with make_package("platform", repo_path) as pkg:
+            pkg.version = version
+
+    maker = PackageMaker("platform", package_cls=DeveloperPackage)
+    maker.version = version
+    maker.__install__ = install_platform
+
     return maker
 
 
 def pkg_rez():
+    version = fetch_rez_version_from_pypi()
+    gui_version = version or "2"
+    pip_version = ("==%s" % version) if version else ">=2"
+
+    variant = system.variant
+    variant.append("python-{0.major}.{0.minor}".format(sys.version_info))
+
     def install_rez_from_pip(repo_path):
+        # pip install rez to temp
+        tmpdir = mkdtemp(prefix="rez-install-")
+        subprocess.check_call([sys.executable, "-m", "pip", "install",
+                               "rez" + pip_version,
+                               "--target", tmpdir])
+        # get version info
+        dist_version = next(d.version for d in
+                            Distribution.discover(name="rez", path=[tmpdir]))
+
+        # make package
         def commands():
-            env.PYTHONPATH.append('{this.root}')
+            env.PYTHONPATH.append("{this.root}")
 
         def make_root(variant, root):
-            # pip install rez to temp
-            tmpdir = mkdtemp(prefix="rez-install-")
-            subprocess.check_call([sys.executable, "-m",
-                                   "pip", "install", "rez",
-                                   "--target", tmpdir])
-            # copy lib
-            rez_path = os.path.join(tmpdir, "rez")
-            rezplugins_path = os.path.join(tmpdir, "rezplugins")
-
-            shutil.copytree(rez_path, os.path.join(root, "rez"))
-            shutil.copytree(rezplugins_path, os.path.join(root, "rezplugins"))
-
-        variant = system.variant
-        variant.append("python-{0.major}.{0.minor}".format(sys.version_info))
+            for lib in ["rez", "rezplugins"]:
+                shutil.copytree(os.path.join(tmpdir, lib),
+                                os.path.join(root, lib))
 
         with make_package("rez", repo_path, make_root=make_root) as pkg:
-            pkg.version = rez.__version__
-            pkg.commands = commands
+            pkg.version = dist_version
             pkg.variants = [variant]
+            pkg.commands = commands
+
+        # cleanup
+        try:
+            shutil.rmtree(tmpdir)
+        except Exception:
+            pass
 
     maker = PackageMaker("rez", package_cls=DeveloperPackage)
-    maker.version = "pip.latest"
-
+    maker.version = gui_version
+    maker.variants = [variant]
     maker.__install__ = install_rez_from_pip
+
     return maker
+
+
+def fetch_rez_version_from_pypi():
+    history_url = "https://pypi.org/project/rez/#history"
+    try:
+        response = requests.get(url=history_url, timeout=0.1)
+    except (requests.exceptions.Timeout, requests.exceptions.ProxyError):
+        pass
+    else:
+        matched = _regex_pypi_rez_ver.match(response.text)
+        if matched and matched.groups():
+            version_str = matched.groups()[0]
+            try:
+                Version(version_str)
+            except VersionError:
+                pass
+            else:
+                return version_str
+
+    print("Failed to parse latest rez version from PyPi..")
+
+
+_regex_pypi_rez_ver = re.compile('.*<h1 class="package-header__name">'
+                                 '.*rez ([0-9]+.[0-9]+.[0-9]+).*',
+                                 flags=re.DOTALL)
