@@ -2,10 +2,19 @@
 Rez developer package delivering tool
 """
 import sys
+import argparse
 from rez.command import Command
 
 
 command_behavior = {}
+
+
+def standalone_cli():
+    # for running without rez's cli
+    parser = argparse.ArgumentParser("deliver")
+    setup_parser(parser)
+    opts = parser.parse_args()
+    return command(opts)
 
 
 def setup_parser(parser, completions=False):
