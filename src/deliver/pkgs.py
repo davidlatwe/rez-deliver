@@ -82,6 +82,44 @@ class Repo(object):
     def root(self):
         return self._root
 
+    def iter_dev_packages(self):
+        raise NotImplementedError
+
+    def get_dev_package_versions(self, name):
+        raise NotImplementedError
+
+    def iter_package_names(self):
+        raise NotImplementedError
+
+    def load(self, name=None):
+        """Load dev-packages into memory repository"""
+        if name:
+            # lazy load, recursively
+            requires = []
+            for version, data in self.get_dev_package_versions(name):
+                if name not in self.mem_repo.data:
+                    self.mem_repo.data[name] = dict()
+                self.mem_repo.data[name][version] = data
+
+                requires += data.get("requires", [])
+                requires += data.get("build_requires", [])
+                requires += data.get("private_build_requires", [])
+                for variant in data.get("variants", []):
+                    requires += variant
+
+            for req_str in requires:
+                req = PackageRequest(req_str)
+                if req.ephemeral or req.name in self.mem_repo.data:
+                    continue
+                self.load(name=req.name)
+
+        else:
+            # full load
+            self.mem_repo.data = {
+                name: versions for name, versions
+                in self.iter_dev_packages()
+            }
+
 
 class MakePkgRepo(Repo):
 
@@ -97,18 +135,30 @@ class MakePkgRepo(Repo):
             "rez": pkg_rez,
         }
 
-    def iter_make_packages(self):
-        for name, func in self.makers.items():
+    def make_package(self, name):
+        func = self.makers.get(name)
+        if func is not None:
             maker = func()
             maker.__source__ = self.root
-            data = maker.get_package().data
+            return maker.get_package()
+
+    def iter_dev_packages(self):
+        for name in self.makers:
+            package = self.make_package(name)
+            data = package.data
             yield name, {data["version"]: data}
 
-    def load(self):
-        self.mem_repo.data = {
-            name: versions for name, versions
-            in self.iter_make_packages()
-        }
+    def get_dev_package_versions(self, name):
+        package = self.make_package(name)
+        if package:
+            data = package.data
+            version = data.get("version", "_NO_VERSION")
+
+            yield version, data
+
+    def iter_package_names(self):
+        for name in self.makers:
+            yield name
 
 
 class DevPkgRepo(Repo):
@@ -169,35 +219,6 @@ class DevPkgRepo(Repo):
         for version, data in self.generate_dev_packages(family):
             yield version, data
 
-    def load(self, name=None):
-        """Load dev-packages from filesystem into memory repository"""
-        if name:
-            # lazy load, recursively
-            requires = []
-            for version, data in self.get_dev_package_versions(name):
-                if name not in self.mem_repo.data:
-                    self.mem_repo.data[name] = dict()
-                self.mem_repo.data[name][version] = data
-
-                requires += data.get("requires", [])
-                requires += data.get("build_requires", [])
-                requires += data.get("private_build_requires", [])
-                for variant in data.get("variants", []):
-                    requires += variant
-
-            for req_str in requires:
-                req = PackageRequest(req_str)
-                if req.ephemeral or req.name in self.mem_repo.data:
-                    continue
-                self.load(name=req.name)
-
-        else:
-            # full load
-            self.mem_repo.data = {
-                name: versions for name, versions
-                in self.iter_dev_packages()
-            }
-
     def iter_package_names(self):
         for family in iter_package_families(paths=[self._root]):
             yield family.name  # package dir name
@@ -206,12 +227,16 @@ class DevPkgRepo(Repo):
 class DevRepoManager(object):
 
     def __init__(self):
-        self._all_loaded = False
-        self._dev_repos = [
+        maker_repo = MakePkgRepo()
+        dev_repos = [
             DevPkgRepo(root=expand_path(root))
             for root in deliverconfig.dev_repository_roots
         ]
-        self._maker_repo = MakePkgRepo()
+        dev_repos += [maker_repo]
+
+        self._all_loaded = False
+        self._dev_repos = dev_repos
+        self._maker_repo = maker_repo
 
     @property
     def maker_root(self):
@@ -219,22 +244,14 @@ class DevRepoManager(object):
 
     @property
     def paths(self):
-        mem_paths = [
-            repo.mem_uid
-            for repo in self._dev_repos
-        ]
-        mem_paths.append(self._maker_repo.mem_uid)
-
-        return mem_paths
+        return [repo.mem_uid for repo in self._dev_repos]
 
     def get_maker_made_package(self, name):
         paths = [self._maker_repo.mem_uid]
         return get_latest_package_from_string(name, paths=paths)
 
     def load(self, name=None):
-        self._maker_repo.load()  # this should be fast, load them all
-
-        dev_paths = [repo.root for repo in self._dev_repos]
+        dev_paths = [repo.root for repo in self._dev_repos[:-1]]
         dev_paths.append(self._maker_repo.mem_uid)
         # Note that the maker repo doesn't have filesystem based package,
         # use memory path `mem_uid` as root instead.
