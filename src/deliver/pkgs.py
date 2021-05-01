@@ -530,7 +530,7 @@ def pkg_os():
             pkg.version = version
             pkg.requires = requires
 
-    maker = PackageMaker("os", package_cls=DeveloperPackage)
+    maker = PackageMaker("os")
     maker.version = version
     maker.requires = requires
     maker.__install__ = install_os
@@ -545,7 +545,7 @@ def pkg_arch():
         with make_package("arch", repo_path) as pkg:
             pkg.version = version
 
-    maker = PackageMaker("arch", package_cls=DeveloperPackage)
+    maker = PackageMaker("arch")
     maker.version = version
     maker.__install__ = install_arch
 
@@ -559,7 +559,7 @@ def pkg_platform():
         with make_package("platform", repo_path) as pkg:
             pkg.version = version
 
-    maker = PackageMaker("platform", package_cls=DeveloperPackage)
+    maker = PackageMaker("platform")
     maker.version = version
     maker.__install__ = install_platform
 
@@ -604,7 +604,7 @@ def pkg_rez():
         except Exception:
             pass
 
-    maker = PackageMaker("rez", package_cls=DeveloperPackage)
+    maker = PackageMaker("rez")
     maker.version = gui_version
     maker.variants = [variant]
     maker.__install__ = install_rez_from_pip
