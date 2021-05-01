@@ -32,8 +32,6 @@ from rez.exceptions import PackageNotFoundError
 # silencing rez logger, e.g. on package preprocessing
 rez_logger.setLevel(logging.WARNING)
 
-deliverconfig = rezconfig.plugins.command.deliver
-
 
 def expand_path(path):
     path = functools.reduce(
@@ -226,6 +224,7 @@ class DevPkgRepo(Repo):
 class DevRepoManager(object):
 
     def __init__(self):
+        deliverconfig = rezconfig.plugins.command.deliver
         maker_repo = MakePkgRepo()
         dev_repos = [
             DevPkgRepo(root=expand_path(root))
