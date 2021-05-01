@@ -615,7 +615,7 @@ def pkg_rez():
 def fetch_rez_version_from_pypi():
     history_url = "https://pypi.org/project/rez/#history"
     try:
-        response = requests.get(url=history_url, timeout=0.1)
+        response = requests.get(url=history_url, timeout=1)
     except (requests.exceptions.Timeout, requests.exceptions.ProxyError):
         pass
     else:
