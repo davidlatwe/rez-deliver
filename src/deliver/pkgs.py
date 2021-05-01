@@ -172,7 +172,7 @@ class DevPkgRepo(Repo):
             for line in output.splitlines():
                 yield line.split("refs/tags/")[-1]
 
-    def _generate_dev_packages(self, package):
+    def load_dev_packages(self, package):
         pkg_path = os.path.dirname(package.uri)
         with os_chdir(pkg_path):
             # If we don't change cwd to package dir, dev package may not be
@@ -192,7 +192,7 @@ class DevPkgRepo(Repo):
 
     def generate_dev_packages(self, family):
         for package in family.iter_packages():
-            for dev_package in self._generate_dev_packages(package):
+            for dev_package in self.load_dev_packages(package):
                 data = dev_package.data.copy()
                 data["__source__"] = dev_package.filepath
                 version = data.get("version", "_NO_VERSION")
