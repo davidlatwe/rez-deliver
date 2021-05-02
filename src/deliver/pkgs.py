@@ -252,7 +252,7 @@ class DevRepoManager(object):
         dev_paths = [repo.root for repo in self._dev_repos[:-1]]
         dev_paths.append(self._maker_repo.mem_uid)
         # Note that the maker repo doesn't have filesystem based package,
-        # use memory path `mem_uid` as root instead.
+        #   use memory path `mem_uid` as root instead.
 
         with override_config({
             # Append `dev_paths` into `config.packages_path` so the requires
