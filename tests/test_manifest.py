@@ -71,3 +71,14 @@ class TestManifest(TestBase):
         manifest = self.installer.manifest()
         self.assertTrue(manifest[-2].name.startswith("os-"))
         self.assertEqual(("foo-1", 0), (manifest[-1].name, manifest[-1].index))
+
+    def test_resolve_with_variants(self):
+        self.dev_repo.add("python", version="2.7")
+        self.dev_repo.add("python", version="3.7")
+        self.dev_repo.add("foo", variants=[["python-2"], ["python-3"]])
+        self.installer.resolve("foo")
+
+        manifest = self.installer.manifest()
+        self.assertEqual(4, len(manifest))
+        for req in manifest:
+            self.assertEqual(self.installer.NotInstalled, req.status)
