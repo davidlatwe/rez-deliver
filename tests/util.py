@@ -3,7 +3,6 @@ import os
 import unittest
 from contextlib import contextmanager
 
-from rez.package_serialise import dump_package_data, package_serialise_schema
 from rez.utils.sourcecode import _add_decorator, SourceCode, late
 from rez.package_repository import package_repository_manager
 from rez.package_maker import PackageMaker, package_schema
@@ -12,6 +11,11 @@ from rez.config import config, _create_locked_config
 from rez.serialise import process_python_objects
 from rez.vendor.schema.schema import Or
 from rez.serialise import FileFormat
+from rez.package_serialise import (
+    package_serialise_schema,
+    package_request_schema,
+    dump_package_data,
+)
 
 
 __all__ = [
@@ -111,15 +115,21 @@ def early_bound_able(data):
     o_package_pod_schema = package_pod_schema._schema
     o_package_serialise_schema = package_serialise_schema._schema
 
-    package_schema._schema = {
-        k: early_bound(v) for k, v in o_package_schema.items()
-    }
-    package_pod_schema._schema = {
-        k: early_bound(v) for k, v in o_package_pod_schema.items()
-    }
-    package_serialise_schema._schema = {
-        k: early_bound(v) for k, v in o_package_serialise_schema.items()
-    }
+    def patch(schema):
+        patched = dict()
+        for k, v in schema.items():
+            attr = k._schema  # schema.Optional object
+            if attr in {"requires", "build_requires", "private_build_requires"}:
+                v = [package_request_schema]
+            if attr == "variants":
+                v = [[package_request_schema]]
+
+            patched[k] = early_bound(v)
+        return patched
+
+    package_schema._schema = patch(o_package_schema)
+    package_pod_schema._schema = patch(o_package_pod_schema)
+    package_serialise_schema._schema = patch(o_package_serialise_schema)
 
     yield
 
@@ -143,5 +153,5 @@ def process_early_bound(data):
             data[key] = SourceCode(func=value, eval_as_function=True)
 
 
-def early_bound(schema):
+def early_bound(schema):  # this actually the same as `late_bound`
     return Or(SourceCode, schema)
