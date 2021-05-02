@@ -26,6 +26,8 @@ class TestManifest(TestBase):
         }
         super(TestManifest, self).setUp()
 
+        self.installer = PackageInstaller(DevRepoManager())
+
     def tearDown(self):
         # from rez.serialise import clear_file_caches
         retries = 5
@@ -42,11 +44,9 @@ class TestManifest(TestBase):
         self.dev_repo.add("foo", version="1")
         self.dev_repo.add("bar", version="1", requires=["foo"])
 
-        dev_repo = DevRepoManager()
-        installer = PackageInstaller(dev_repo)
-        installer.resolve("bar")
+        self.installer.resolve("bar")
 
-        manifest = installer.manifest()
+        manifest = self.installer.manifest()
         self.assertEqual("foo-1", manifest[0].name)
         self.assertEqual("bar-1", manifest[1].name)
 
@@ -55,11 +55,9 @@ class TestManifest(TestBase):
         self.dev_repo.add("goo", version="1")
         self.dev_repo.add("bar", version="1", variants=[["foo"], ["goo"]])
 
-        dev_repo = DevRepoManager()
-        installer = PackageInstaller(dev_repo)
-        installer.resolve("bar")
+        self.installer.resolve("bar")
 
-        manifest = installer.manifest()
+        manifest = self.installer.manifest()
         self.assertEqual("foo-1", manifest[0].name)
         self.assertEqual(("bar-1", 0), (manifest[1].name, manifest[1].index))
         self.assertEqual("goo-1", manifest[2].name)
