@@ -1,28 +1,21 @@
 
 import os
 import unittest
-from contextlib import contextmanager
 
-from rez.utils.sourcecode import _add_decorator, SourceCode, late
+from rez.utils.sourcecode import late
 from rez.package_repository import package_repository_manager
-from rez.package_maker import PackageMaker, package_schema
-from rez.package_resources import package_pod_schema
+from rez.package_maker import PackageMaker
 from rez.config import config, _create_locked_config
 from rez.serialise import process_python_objects
-from rez.vendor.schema.schema import Or
 from rez.serialise import FileFormat
-from rez.package_serialise import (
-    package_serialise_schema,
-    package_request_schema,
-    dump_package_data,
-)
+from rez.package_serialise import dump_package_data
 
 
 __all__ = [
     "TestBase",
     "MemoryPkgRepo",
     "DeveloperPkgRepo",
-    "early",
+    # "early",  # not supported
     "late",
 ]
 
@@ -84,10 +77,9 @@ class MemoryPkgRepo(PkgRepo):
 class DeveloperPkgRepo(PkgRepo):
 
     def add(self, name, **kwargs):
-        with early_bound_able(kwargs):
-            self._add(name, **kwargs)
-
-    def _add(self, name, **kwargs):
+        # early could not be supported, see the commit history for another
+        #   shot. Hint, tests could fail due to the schema hack is not being
+        #   reverted.
         maker = PackageMaker(name, data=kwargs)
         package = maker.get_package()
         data = package.data
@@ -105,53 +97,3 @@ class DeveloperPkgRepo(PkgRepo):
         os.makedirs(pkg_base_path, exist_ok=True)
         with open(filepath, "w") as f:
             dump_package_data(data, buf=f, format_=FileFormat.py)
-
-
-@contextmanager
-def early_bound_able(data):
-    process_early_bound(data)
-
-    o_package_schema = package_schema._schema
-    o_package_pod_schema = package_pod_schema._schema
-    o_package_serialise_schema = package_serialise_schema._schema
-
-    def patch(schema):
-        patched = dict()
-        for k, v in schema.items():
-            attr = k._schema  # schema.Optional object
-            if attr in {"requires", "build_requires", "private_build_requires"}:
-                v = [package_request_schema]
-            if attr == "variants":
-                v = [[package_request_schema]]
-
-            patched[k] = early_bound(v)
-        return patched
-
-    package_schema._schema = patch(o_package_schema)
-    package_pod_schema._schema = patch(o_package_pod_schema)
-    package_serialise_schema._schema = patch(o_package_serialise_schema)
-
-    yield
-
-    package_schema._schema = o_package_schema
-    package_pod_schema._schema = o_package_pod_schema
-    package_serialise_schema._schema = o_package_serialise_schema
-
-
-def early():
-    def decorated(fn):
-        setattr(fn, "_early", True)
-        _add_decorator(fn, "early")
-        return fn
-
-    return decorated
-
-
-def process_early_bound(data):
-    for key, value in data.items():
-        if hasattr(value, "_early"):
-            data[key] = SourceCode(func=value, eval_as_function=True)
-
-
-def early_bound(schema):  # this actually the same as `late_bound`
-    return Or(SourceCode, schema)
