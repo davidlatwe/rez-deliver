@@ -499,14 +499,19 @@ def os_chdir(path):
 
 @contextlib.contextmanager
 def override_config(entries):
-    try:
-        for key, value in entries.items():
-            rezconfig.override(key, value)
-        yield
+    previous_override = rezconfig.overrides.copy()
 
-    finally:
-        for key in entries.keys():
-            rezconfig.remove_override(key)
+    for key, value in entries.items():
+        rezconfig.override(key, value)
+
+    yield
+
+    for key in entries.keys():
+        rezconfig.remove_override(key)
+
+    for key, value in previous_override.items():
+        if key in entries:
+            rezconfig.override(key, value)
 
 
 def clear_repo_cache(path):
