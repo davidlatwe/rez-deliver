@@ -17,7 +17,7 @@ except ImportError:
 from rez.config import config as rezconfig
 from rez.system import system
 from rez.package_maker import PackageMaker, make_package
-from rez.packages import iter_package_families
+from rez.packages import iter_package_families, iter_packages
 from rez.utils.formatting import PackageRequest
 from rez.resolved_context import ResolvedContext
 from rez.developer_package import DeveloperPackage
@@ -60,8 +60,9 @@ MainMemoryRepo
 
 class Repo(object):
 
-    def __init__(self, root):
+    def __init__(self, root, manager):
         self._root = root
+        self._manager = manager
         self._loaded = set()
         self._all_loaded = False
 
@@ -119,8 +120,8 @@ class Repo(object):
 
 class MakePkgRepo(Repo):
 
-    def __init__(self):
-        Repo.__init__(self, root="rez:package_maker")
+    def __init__(self, manager):
+        Repo.__init__(self, root="rez:package_maker", manager=manager)
 
     @property
     def makers(self):
@@ -132,9 +133,10 @@ class MakePkgRepo(Repo):
         }
 
     def make_package(self, name):
+        release = self._manager.release
         func = self.makers.get(name)
         if func is not None:
-            maker = func()
+            maker = func(release=release)
             maker.__source__ = self.root
             return maker.get_package()
 
@@ -224,13 +226,14 @@ class DevRepoManager(object):
 
     def __init__(self):
         deliverconfig = rezconfig.plugins.command.deliver
-        maker_repo = MakePkgRepo()
+        maker_repo = MakePkgRepo(manager=self)
         dev_repos = [
-            DevPkgRepo(root=expand_path(root))
+            DevPkgRepo(root=expand_path(root), manager=self)
             for root in deliverconfig.dev_repository_roots
         ]
         dev_repos += [maker_repo]
 
+        self.release = False
         self._dev_repos = dev_repos
         self._maker_repo = maker_repo
 
@@ -350,6 +353,7 @@ class PackageInstaller(object):
 
         print("Mode: %s" % ("release" if release else "install"))
         self.release = release
+        self.dev_repo.release = release
         self.reset()
 
     def reset(self):
@@ -460,7 +464,7 @@ class PackageInstaller(object):
             os.makedirs(deploy_path)
 
         made_pkg = self.dev_repo.get_maker_made_package(name)
-        made_pkg.__install__(deploy_path)
+        made_pkg.__install__(deploy_path, variant)
 
         clear_repo_cache(deploy_path)
 
@@ -538,12 +542,12 @@ def clear_repo_cache(path):
     fs_repo.get_family.cache_clear()
 
 
-def pkg_os():
+def pkg_os(*args, **kwargs):
     version = system.os
     requires = ["platform-%s" % system.platform,
                 "arch-%s" % system.arch]
 
-    def install_os(repo_path):
+    def install_os(repo_path, *args, **kwargs):
         with make_package("os", repo_path) as pkg:
             pkg.version = version
             pkg.requires = requires
@@ -556,10 +560,10 @@ def pkg_os():
     return maker
 
 
-def pkg_arch():
+def pkg_arch(*args, **kwargs):
     version = system.arch
 
-    def install_arch(repo_path):
+    def install_arch(repo_path, *args, **kwargs):
         with make_package("arch", repo_path) as pkg:
             pkg.version = version
 
@@ -570,10 +574,10 @@ def pkg_arch():
     return maker
 
 
-def pkg_platform():
+def pkg_platform(*args, **kwargs):
     version = system.platform
 
-    def install_platform(repo_path):
+    def install_platform(repo_path, *args, **kwargs):
         with make_package("platform", repo_path) as pkg:
             pkg.version = version
 
@@ -584,47 +588,38 @@ def pkg_platform():
     return maker
 
 
-def pkg_rez():
+def pkg_rez(release, *args, **kwargs):
     version = fetch_rez_version_from_pypi()
     gui_version = version or "2"
     pip_version = ("==%s" % version) if version else ">=2"
 
-    variant = system.variant
-    variant.append("python-{0.major}.{0.minor}".format(sys.version_info))
+    variants = []
+    pythons = find_python_package_versions(release)
+    if pythons:
+        for py_ver in pythons:
+            variant = system.variant[:]
+            variant.append("python-" + py_ver)
+            variants.append(variant)
 
-    def install_rez_from_pip(repo_path):
-        # pip install rez to temp
-        tmpdir = mkdtemp(prefix="rez-install-")
-        subprocess.check_call([sys.executable, "-m", "pip", "install",
-                               "rez" + pip_version,
-                               "--target", tmpdir])
-        # get version info
-        dist_version = next(d.version for d in
-                            Distribution.discover(name="rez", path=[tmpdir]))
+        def install_rez_from_pip(repo_path, variant, *args, **kwargs):
+            requires = variants[variant]
+            context = ResolvedContext(requires)
+            context.execute_shell(
+                command=["python", __file__, repo_path, pip_version],
+                block=True,
+            )
 
-        # make package
-        def commands():
-            env.PYTHONPATH.append("{this.root}")
+    else:
+        # no python package found, install as python-any
+        variant = system.variant[:]
+        variants.append(variant)
 
-        def make_root(variant, root):
-            for lib in ["rez", "rezplugins"]:
-                shutil.copytree(os.path.join(tmpdir, lib),
-                                os.path.join(root, lib))
-
-        with make_package("rez", repo_path, make_root=make_root) as pkg:
-            pkg.version = dist_version
-            pkg.variants = [variant]
-            pkg.commands = commands
-
-        # cleanup
-        try:
-            shutil.rmtree(tmpdir)
-        except Exception:
-            pass
+        def install_rez_from_pip(repo_path, *args, **kwargs):
+            build_rez_from_pip(repo_path, pip_version)
 
     maker = PackageMaker("rez")
     maker.version = gui_version
-    maker.variants = [variant]
+    maker.variants = variants
     maker.__install__ = install_rez_from_pip
 
     return maker
@@ -653,3 +648,69 @@ def fetch_rez_version_from_pypi():
 _regex_pypi_rez_ver = re.compile('.*<h1 class="package-header__name">'
                                  '.*rez ([0-9]+.[0-9]+.[0-9]+).*',
                                  flags=re.DOTALL)
+
+
+def find_python_package_versions(release):
+    python = "python"
+    versions = set()
+
+    dev_repo = DevRepoManager()
+    dev_repo.load(name=python)
+
+    paths = rezconfig.nonlocal_packages_path[:] if release \
+        else rezconfig.packages_path[:]
+    paths += dev_repo.paths
+
+    for package in iter_packages(python, paths=paths):
+        versions.add(package.version)
+
+    short_versions = set()
+    for version in sorted(versions):
+        tokens = [
+            str(t) for t in version.tokens[:2]  # only need major.minor
+        ]
+        if len(tokens) >= 2 and all(t.isdigit() for t in tokens):
+            short_versions.add(".".join(tokens))
+
+    return sorted(short_versions)
+
+
+def build_rez_from_pip(repo_path, pip_version, python_variants=False):
+    # pip install rez to temp
+    tmpdir = mkdtemp(prefix="rez-install-")
+    subprocess.check_call([sys.executable, "-m", "pip", "install",
+                           "rez" + pip_version,
+                           "--target", tmpdir])
+    # get version info
+    dist_version = next(d.version for d in
+                        Distribution.discover(name="rez", path=[tmpdir]))
+
+    # make package
+    def commands():
+        env.PYTHONPATH.append("{this.root}")
+
+    def make_root(variant, root):
+        for lib in ["rez", "rezplugins"]:
+            shutil.copytree(os.path.join(tmpdir, lib),
+                            os.path.join(root, lib))
+
+    variant = system.variant[:]
+    if python_variants:
+        variant.append("python-{0.major}.{0.minor}".format(sys.version_info))
+    variants = [variant]
+
+    with make_package("rez", repo_path, make_root=make_root) as pkg:
+        pkg.version = dist_version
+        pkg.variants = variants
+        pkg.commands = commands
+
+    # cleanup
+    try:
+        shutil.rmtree(tmpdir)
+    except Exception:
+        pass
+
+
+if __name__ == "__main__":
+    repo_path, pip_version = sys.argv[1:]
+    build_rez_from_pip(repo_path, pip_version, True)
