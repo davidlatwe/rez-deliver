@@ -26,7 +26,7 @@ from rez.packages import get_latest_package_from_string, get_latest_package
 from rez.package_repository import package_repository_manager
 from rez.vendor.version.version import Version, VersionError
 from rez.utils.lint_helper import env
-from rez.exceptions import PackageNotFoundError
+from rez.exceptions import PackageFamilyNotFoundError, PackageNotFoundError
 
 
 # silencing rez logger, e.g. on package preprocessing
@@ -62,6 +62,8 @@ class Repo(object):
 
     def __init__(self, root):
         self._root = root
+        self._loaded = set()
+        self._all_loaded = False
 
     def __contains__(self, pkg):
         uid = "@".join(pkg.parent.repository.uid[:2])
@@ -90,25 +92,20 @@ class Repo(object):
 
     def load(self, name=None):
         """Load dev-packages into memory repository"""
+        if self._all_loaded:
+            return
+
         if name:
-            # lazy load, recursively
-            requires = []
+            # lazy load
+            if name in self._loaded:
+                return
+
             for version, data in self.get_dev_package_versions(name):
                 if name not in self.mem_repo.data:
                     self.mem_repo.data[name] = dict()
                 self.mem_repo.data[name][version] = data
 
-                requires += data.get("requires", [])
-                requires += data.get("build_requires", [])
-                requires += data.get("private_build_requires", [])
-                for variant in data.get("variants", []):
-                    requires += variant
-
-            for req_str in requires:
-                req = PackageRequest(req_str)
-                if req.ephemeral or req.name in self.mem_repo.data:
-                    continue
-                self.load(name=req.name)
+            self._loaded.add(name)
 
         else:
             # full load
@@ -116,6 +113,8 @@ class Repo(object):
                 name: versions for name, versions
                 in self.iter_dev_packages()
             }
+
+            self._all_loaded = True
 
 
 class MakePkgRepo(Repo):
@@ -232,7 +231,6 @@ class DevRepoManager(object):
         ]
         dev_repos += [maker_repo]
 
-        self._all_loaded = False
         self._dev_repos = dev_repos
         self._maker_repo = maker_repo
 
@@ -268,13 +266,27 @@ class DevRepoManager(object):
             for repo in self._dev_repos:
                 repo.load(name=name)
 
-        if not name:
-            self._all_loaded = True
+        if name:
+            # lazy load, recursively
+            requires = []
+            for repo in self._dev_repos:
+                versions = repo.mem_repo.data.get(name, dict())
+                for version, data in versions.items():
+                    requires += data.get("requires", [])
+                    requires += data.get("build_requires", [])
+                    requires += data.get("private_build_requires", [])
+                    for variant in data.get("variants", []):
+                        requires += variant
+            seen = set()
+            for req_str in requires:
+                req = PackageRequest(req_str)
+                if req.name not in seen and not req.ephemeral:
+                    seen.add(req.name)
+                    self.load(name=req.name)
 
     def find(self, request):
         request = PackageRequest(request)
-        if not self._all_loaded:
-            self.load(name=request.name)
+        self.load(name=request.name)
         return get_latest_package(name=request.name,
                                   range_=request.range_,
                                   paths=self.paths)
@@ -413,7 +425,7 @@ class PackageInstaller(object):
             # solve
             try:
                 context = self._build_context(variant)
-            except PackageNotFoundError as e:
+            except (PackageFamilyNotFoundError, PackageNotFoundError) as e:
                 print(e)
                 requested.status = self.ResolveFailed
 
@@ -436,10 +448,9 @@ class PackageInstaller(object):
 
     def _build_context(self, variant):
         paths = self.installed_packages_path + self.dev_repo.paths
-        implicit_pkgs = list(map(PackageRequest, rezconfig.implicit_packages))
         pkg_requests = variant.get_requires(build_requires=True,
                                             private_build_requires=True)
-        return ResolvedContext(pkg_requests + implicit_pkgs,
+        return ResolvedContext(pkg_requests,
                                building=True,
                                package_paths=paths)
 
