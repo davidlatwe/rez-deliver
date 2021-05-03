@@ -1,21 +1,29 @@
 
 import os
+import sys
 import unittest
+from contextlib import contextmanager
 
-from rez.utils.sourcecode import late
+from rez.plugin_managers import plugin_manager, PackageRepositoryPluginType
+from rez.utils.sourcecode import _add_decorator, SourceCode, late
 from rez.package_repository import package_repository_manager
-from rez.package_maker import PackageMaker
+from rez.package_maker import PackageMaker, package_schema
+from rez.package_resources import package_pod_schema
 from rez.config import config, _create_locked_config
 from rez.serialise import process_python_objects
+from rez.vendor.schema.schema import Or
 from rez.serialise import FileFormat
-from rez.package_serialise import dump_package_data
+from rez.package_serialise import (
+    package_serialise_schema,
+    dump_package_data,
+)
 
 
 __all__ = [
     "TestBase",
     "MemoryPkgRepo",
     "DeveloperPkgRepo",
-    # "early",  # not supported
+    "early",
     "late",
 ]
 
@@ -75,11 +83,48 @@ class MemoryPkgRepo(PkgRepo):
 
 
 class DeveloperPkgRepo(PkgRepo):
+    """A repository that able to read/write developer packages"""
+
+    def __init__(self, path):
+        super(DeveloperPkgRepo, self).__init__(path=path)
+        self._out_early_enabled = False
+
+    @contextmanager
+    def enable_out_early(self):
+        schema_objects = [
+            package_schema,
+            package_pod_schema,
+            package_serialise_schema,
+        ]
+        originals = list()
+
+        for schema_obj in schema_objects:
+            originals.append(schema_obj._schema)
+            # make every attribute early-able
+            schema_obj._schema = {
+                k: Or(SourceCode, v)  # just like what `late_bound` does
+                for k, v in schema_obj._schema.items()
+            }
+
+        self._out_early_enabled = True
+
+        yield
+
+        for i, schema_obj in enumerate(schema_objects):
+            schema_obj._schema = originals[i]
+
+        # repository plugins must be resetted to reload schemas
+        _reset_package_repository_plugin()
+        self._out_early_enabled = False
 
     def add(self, name, **kwargs):
-        # early could not be supported, see the commit history for another
-        #   shot. Hint, tests could fail due to the schema hack is not being
-        #   reverted.
+        if self._out_early_enabled:
+            # process early bound functions
+            for key, value in kwargs.items():
+                if hasattr(value, "_early"):
+                    kwargs[key] = SourceCode(func=value,
+                                             eval_as_function=True)
+
         maker = PackageMaker(name, data=kwargs)
         package = maker.get_package()
         data = package.data
@@ -97,3 +142,23 @@ class DeveloperPkgRepo(PkgRepo):
         os.makedirs(pkg_base_path, exist_ok=True)
         with open(filepath, "w") as f:
             dump_package_data(data, buf=f, format_=FileFormat.py)
+
+
+def early():
+    def decorated(fn):
+        setattr(fn, "_early", True)
+        _add_decorator(fn, "early")
+        return fn
+
+    return decorated
+
+
+def _reset_package_repository_plugin():
+    package_repository_manager.clear_caches()
+    package_repository_manager.pool.resource_classes.clear()
+
+    plugin_manager.register_plugin_type(PackageRepositoryPluginType)
+
+    for key in list(sys.modules.keys()):
+        if key.startswith("rezplugins.package_repository"):
+            del sys.modules[key]
