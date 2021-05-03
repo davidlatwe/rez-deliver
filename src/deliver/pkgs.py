@@ -389,6 +389,8 @@ class PackageInstaller(object):
         package = self.find_installed(request)
 
         if develop is None and package is None:
+            # TODO: Instead of raising error, add Requested obj and mark
+            #  status as ResolveFailed
             raise PackageNotFoundError("%s not found in develop repository "
                                        "nor in installed package paths."
                                        % request)
