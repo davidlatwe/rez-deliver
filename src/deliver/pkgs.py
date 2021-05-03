@@ -542,12 +542,12 @@ def clear_repo_cache(path):
     fs_repo.get_family.cache_clear()
 
 
-def pkg_os(*args, **kwargs):
+def pkg_os(*_args, **_kwargs):
     version = system.os
     requires = ["platform-%s" % system.platform,
                 "arch-%s" % system.arch]
 
-    def install_os(repo_path, *args, **kwargs):
+    def install_os(repo_path, *_args, **_kwargs):
         with make_package("os", repo_path) as pkg:
             pkg.version = version
             pkg.requires = requires
@@ -560,10 +560,10 @@ def pkg_os(*args, **kwargs):
     return maker
 
 
-def pkg_arch(*args, **kwargs):
+def pkg_arch(*_args, **_kwargs):
     version = system.arch
 
-    def install_arch(repo_path, *args, **kwargs):
+    def install_arch(repo_path, *_args, **_kwargs):
         with make_package("arch", repo_path) as pkg:
             pkg.version = version
 
@@ -574,10 +574,10 @@ def pkg_arch(*args, **kwargs):
     return maker
 
 
-def pkg_platform(*args, **kwargs):
+def pkg_platform(*_args, **_kwargs):
     version = system.platform
 
-    def install_platform(repo_path, *args, **kwargs):
+    def install_platform(repo_path, *_args, **_kwargs):
         with make_package("platform", repo_path) as pkg:
             pkg.version = version
 
@@ -588,7 +588,7 @@ def pkg_platform(*args, **kwargs):
     return maker
 
 
-def pkg_rez(release, *args, **kwargs):
+def pkg_rez(release, *_args, **_kwargs):
     version = fetch_rez_version_from_pypi()
     gui_version = version or "2"
     pip_version = ("==%s" % version) if version else ">=2"
@@ -601,8 +601,8 @@ def pkg_rez(release, *args, **kwargs):
             variant.append("python-" + py_ver)
             variants.append(variant)
 
-        def install_rez_from_pip(repo_path, variant, *args, **kwargs):
-            requires = variants[variant]
+        def install_rez_from_pip(repo_path, variant_index, *_args, **_kwargs):
+            requires = variants[variant_index]
             context = ResolvedContext(requires)
             context.execute_shell(
                 command=["python", __file__, repo_path, pip_version],
@@ -614,7 +614,7 @@ def pkg_rez(release, *args, **kwargs):
         variant = system.variant[:]
         variants.append(variant)
 
-        def install_rez_from_pip(repo_path, *args, **kwargs):
+        def install_rez_from_pip(repo_path, *_args, **_kwargs):
             build_rez_from_pip(repo_path, pip_version)
 
     maker = PackageMaker("rez")
@@ -689,7 +689,7 @@ def build_rez_from_pip(repo_path, pip_version, python_variants=False):
     def commands():
         env.PYTHONPATH.append("{this.root}")
 
-    def make_root(variant, root):
+    def make_root(_variant, root):
         for lib in ["rez", "rezplugins"]:
             shutil.copytree(os.path.join(tmpdir, lib),
                             os.path.join(root, lib))
@@ -712,5 +712,5 @@ def build_rez_from_pip(repo_path, pip_version, python_variants=False):
 
 
 if __name__ == "__main__":
-    repo_path, pip_version = sys.argv[1:]
-    build_rez_from_pip(repo_path, pip_version, True)
+    _repo_path, _pip_version = sys.argv[1:]
+    build_rez_from_pip(_repo_path, _pip_version, True)
