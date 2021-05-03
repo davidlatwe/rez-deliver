@@ -100,8 +100,9 @@ class TestManifest(TestBase):
 
         self.installer.resolve("foo")
         manifest = self.installer.manifest()
-        self.assertEqual("foo", manifest[0].name)
-        self.assertEqual(self.installer.NotInstalled, manifest[0].status)
+        self.assertEqual(3, len(manifest))
+        for req in manifest:
+            self.assertEqual(self.installer.NotInstalled, req.status)
 
 
 if __name__ == "__main__":

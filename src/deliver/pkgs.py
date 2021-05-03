@@ -65,7 +65,7 @@ class Repo(object):
 
     @property
     def mem_uid(self):
-        return "memory@" + self._root
+        return "vmemory@" + self._root
 
     @property
     def mem_repo(self):
@@ -164,6 +164,25 @@ class DevPkgRepo(Repo):
             for line in output.splitlines():
                 yield line.split("refs/tags/")[-1]
 
+    def _load_re_evaluated_dev_package(self, pkg_path):
+        package = DeveloperPackage.from_path(pkg_path)
+
+        re_evaluated_variants = list()
+        for variant in package.iter_variants():
+            index = variant.index
+            with set_objects({
+                "building": True,
+                "build_variant_index": index or 0,
+                "build_variant_requires": variant.variant_requires
+            }):
+                re_evaluated_package = DeveloperPackage.from_path(pkg_path)
+            re_evaluated_variant = re_evaluated_package.get_variant(index)
+            re_evaluated_variants.append(re_evaluated_variant.resource)
+
+        package.data["re_evaluated_variants"] = re_evaluated_variants
+
+        return package
+
     def load_dev_packages(self, package):
         pkg_path = os.path.dirname(package.uri)
         with os_chdir(pkg_path):
@@ -178,9 +197,9 @@ class DevPkgRepo(Repo):
                 for ver_tag in self._git_tags(git_url):
                     # generate versions from git tags
                     with temp_env("REZ_DELIVER_PKG_PAYLOAD_VER", ver_tag):
-                        yield DeveloperPackage.from_path(pkg_path)
+                        yield self._load_re_evaluated_dev_package(pkg_path)
             else:
-                yield DeveloperPackage.from_path(pkg_path)
+                yield self._load_re_evaluated_dev_package(pkg_path)
 
     def generate_dev_packages(self, family):
         for package in family.iter_packages():
@@ -403,16 +422,15 @@ class PackageInstaller(object):
             name = develop.qualified_name
             variants = develop.iter_variants()
             source = develop.data["__source__"]
-            pkg_variants_req = []
-            is_dev = source != self.dev_repo.maker_root
         else:
             # use installed package
-            is_dev = False
             name = package.qualified_name
             variants = package.iter_variants()
             source = package.uri
-            pkg_variants_req = [v.variant_requires
-                                for v in package.iter_variants()]
+
+        pkg_variants_req = [] if package is None else [
+            v.variant_requires for v in package.iter_variants()
+        ]
 
         for variant in variants:
             if variant_index is not None and variant_index != variant.index:
@@ -434,7 +452,7 @@ class PackageInstaller(object):
 
             # solve
             try:
-                context = self._build_context(variant, is_dev)
+                context = self._build_context(variant)
             except (PackageFamilyNotFoundError, PackageNotFoundError) as e:
                 print(e)
                 requested.status = self.ResolveFailed
@@ -456,18 +474,8 @@ class PackageInstaller(object):
             if req_id is None:
                 self._requirements.append(requested)
 
-    def _build_context(self, variant, is_dev):
-        if is_dev:
-            path = os.path.dirname(variant.parent.__source__)
-            with set_objects({
-                "building": True,
-                "build_variant_index": variant.index or 0,
-                "build_variant_requires": variant.variant_requires
-            }):
-                package = DeveloperPackage.from_path(path)
-            variant = package.get_variant(variant.index)
-
-        paths = self.installed_packages_path + self.dev_repo.paths
+    def _build_context(self, variant):
+        paths = self.dev_repo.paths + self.installed_packages_path
         pkg_requests = variant.get_requires(build_requires=True,
                                             private_build_requires=True)
         return ResolvedContext(pkg_requests,
