@@ -5,6 +5,7 @@ import functools
 import subprocess
 import contextlib
 
+from rez.serialise import set_objects
 from rez.config import config as rezconfig
 from rez.packages import iter_package_families
 from rez.utils.formatting import PackageRequest
@@ -397,14 +398,16 @@ class PackageInstaller(object):
             raise PackageNotFoundError("%s not found in develop repository "
                                        "nor in installed package paths."
                                        % request)
-        if package is None:
-            # use developer package
+        if develop is not None:
+            # use developer package, even there is an installed one
             name = develop.qualified_name
             variants = develop.iter_variants()
             source = develop.data["__source__"]
             pkg_variants_req = []
+            is_dev = source != self.dev_repo.maker_root
         else:
             # use installed package
+            is_dev = False
             name = package.qualified_name
             variants = package.iter_variants()
             source = package.uri
@@ -431,7 +434,7 @@ class PackageInstaller(object):
 
             # solve
             try:
-                context = self._build_context(variant)
+                context = self._build_context(variant, is_dev)
             except (PackageFamilyNotFoundError, PackageNotFoundError) as e:
                 print(e)
                 requested.status = self.ResolveFailed
@@ -453,7 +456,17 @@ class PackageInstaller(object):
             if req_id is None:
                 self._requirements.append(requested)
 
-    def _build_context(self, variant):
+    def _build_context(self, variant, is_dev):
+        if is_dev:
+            path = os.path.dirname(variant.parent.__source__)
+            with set_objects({
+                "building": True,
+                "build_variant_index": variant.index or 0,
+                "build_variant_requires": variant.variant_requires
+            }):
+                package = DeveloperPackage.from_path(path)
+            variant = package.get_variant(variant.index)
+
         paths = self.installed_packages_path + self.dev_repo.paths
         pkg_requests = variant.get_requires(build_requires=True,
                                             private_build_requires=True)

@@ -3,8 +3,9 @@ import os
 import time
 import shutil
 import tempfile
+import unittest
 from deliver.pkgs import DevRepoManager, PackageInstaller
-from .util import TestBase, DeveloperPkgRepo
+from .util import TestBase, DeveloperPkgRepo, early
 
 
 class TestManifest(TestBase):
@@ -82,3 +83,26 @@ class TestManifest(TestBase):
         self.assertEqual(4, len(manifest))
         for req in manifest:
             self.assertEqual(self.installer.NotInstalled, req.status)
+
+    def test_resolve_early_build(self):
+
+        @early()
+        def bar_requires():
+            if building:
+                return []
+            else:
+                return ["!ehh"]
+
+        with self.dev_repo.enable_out_early():
+            self.dev_repo.add("foo", requires=["bar", "ehh"])
+            self.dev_repo.add("bar", requires=bar_requires)
+            self.dev_repo.add("ehh")
+
+        self.installer.resolve("foo")
+        manifest = self.installer.manifest()
+        self.assertEqual("foo", manifest[0].name)
+        self.assertEqual(self.installer.NotInstalled, manifest[0].status)
+
+
+if __name__ == "__main__":
+    unittest.main()
