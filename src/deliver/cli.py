@@ -43,16 +43,20 @@ def deploy_packages(requests, path, dry_run=False, yes=False):
     manifest = installer.manifest()
 
     names = [
-        ("%s" % name) + ("" if variant_ind is None else ("[%s]" % variant_ind))
-        for name, variant_ind in manifest.keys()
+        ("%s" % requested.name)
+        + ("" if requested.index is None else ("[%s]" % requested.index))
+        for requested in manifest
     ]
     _max_name_len = max(len(n) for n in names)
 
     print("\nFollowing packages will be deployed:")
     print("-" * 70)
-    for i, (exists, src) in enumerate(manifest.values()):
+    for i, requested in enumerate(manifest):
         template = " %%-%ds | %%s" % _max_name_len
-        line = template % (names[i], "(installed)" if exists else src)
+        status = "(%s)" % pkgs.PackageInstaller.StatusMapStr[requested.status]
+        is_installed = requested.status == pkgs.PackageInstaller.Installed
+        line = template % (names[i],
+                           status if is_installed else requested.source)
         print(line)
 
     if dry_run:

@@ -217,11 +217,7 @@ class PackageManifestModel(common.model.AbstractTableModel):
         "variant",
     ]
 
-    Status = {
-        PackageInstaller.NotInstalled: "",
-        PackageInstaller.Installed: "installed",
-        PackageInstaller.ResolveFailed: "failed",
-    }
+    Status = PackageInstaller.StatusMapStr
 
     def clear(self):
         self.beginResetModel()

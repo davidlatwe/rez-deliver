@@ -329,6 +329,12 @@ class PackageInstaller(object):
     Installed = 1
     ResolveFailed = 2
 
+    StatusMapStr = {
+        NotInstalled: "",
+        Installed: "installed",
+        ResolveFailed: "failed",
+    }
+
     def __init__(self, dev_repo):
         self.release = False
         self.dev_repo = dev_repo

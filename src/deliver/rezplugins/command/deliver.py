@@ -18,15 +18,16 @@ def standalone_cli():
 
 
 def setup_parser(parser, completions=False):
-    parser.add_argument("packages", nargs="*",
+    parser.add_argument("PKG", nargs="*",
                         help="Package names to deploy.")
     parser.add_argument("-r", "--release", action="store_true",
                         help="Deploy package as release.")
-    parser.add_argument("-i", "--install", nargs="?",
-                        const=True, default=False,
-                        help="Deploy package as install. Packages will be "
-                             "installed to a custom path if path given, or "
-                             "to Rez local_packages_path by default.")
+    parser.add_argument("-i", "--install", action="store_true",
+                        help="Deploy package as install.")
+    parser.add_argument("-p", "--install-path",
+                        help="Packages will be installed to a custom path "
+                             "if path given, or to Rez local_packages_path "
+                             "by default.")
     parser.add_argument("--dry-run", action="store_true",
                         help="List out all packages that will be deployed "
                              "and exit.")
@@ -60,7 +61,7 @@ def command(opts, parser=None, extra_arg_groups=None):
         cli.list_developer_packages(opts.packages)
         return
 
-    if opts.packages:
+    if opts.PKG:
 
         if opts.release and opts.install:
             print("Cannot set both --release and --install flags.")
@@ -70,17 +71,18 @@ def command(opts, parser=None, extra_arg_groups=None):
             print("Must pick one deploy option --release or --install.")
             return
 
+        if opts.release and opts.install_path:
+            print("--install-path doesn't work with --release.")
+            return
+
         if opts.install:
-            if isinstance(opts.install, bool):
-                path = config.local_packages_path
-            else:
-                path = opts.install
+            path = opts.install_path or config.local_packages_path
         elif opts.release:
             path = config.release_packages_path
         else:
             raise Exception("Undefined behavior.")
 
-        if cli.deploy_packages(opts.packages, path, opts.dry_run, opts.yes):
+        if cli.deploy_packages(opts.PKG, path, opts.dry_run, opts.yes):
             if not opts.dry_run:
                 print("=" * 30)
                 print("SUCCESS!\n")
