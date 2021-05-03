@@ -313,7 +313,10 @@ class Requested(object):
         return other == (self.name, self.index)
 
     def __repr__(self):
-        return "Requested(name='%s', index=%r)" % (self.name, self.index)
+        return "Requested(name='%s', index=%r, status=%s)" \
+               % (self.name,
+                  self.index,
+                  PackageInstaller.StatusMapStr[self.status] or "ready")
 
 
 class PackageInstaller(object):
