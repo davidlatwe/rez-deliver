@@ -46,9 +46,6 @@ def command(opts, parser=None, extra_arg_groups=None):
     from rez.config import config
     from deliver import cli
 
-    # TODO: ensure vcs plugin "kit" is loaded on package release
-    # TODO: This deploy script requires to be in rez venv
-
     if opts.version:
         from deliver._version import print_info
         sys.exit(print_info())
@@ -58,7 +55,7 @@ def command(opts, parser=None, extra_arg_groups=None):
         return app.main()
 
     if opts.list:
-        cli.list_developer_packages(opts.packages)
+        cli.list_developer_packages(opts.PKG)
         return
 
     if opts.PKG:
