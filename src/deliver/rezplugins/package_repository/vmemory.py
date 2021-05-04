@@ -6,8 +6,11 @@ def patch_rez():
     from rez.packages import Variant, Package
 
     def iter_variants(self):
+        is_vmem = self.repository.name() == "vmemory"
         for variant in self.repository.iter_variants(self.resource):
-            yield Variant(variant, context=self.context, parent=None)
+            yield Variant(variant,
+                          context=self.context,
+                          parent=None if is_vmem else self)
 
     Package.iter_variants = iter_variants
 
