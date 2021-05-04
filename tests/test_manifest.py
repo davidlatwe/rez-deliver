@@ -12,17 +12,23 @@ class TestManifest(TestBase):
 
     def setUp(self):
         root = tempfile.mkdtemp(prefix="rez_deliver_test_")
-        install_path = tempfile.mkdtemp(prefix="rez_deliver_test_install_")
-        release_path = tempfile.mkdtemp(prefix="rez_deliver_test_release_")
+        install_path = os.path.join(root, "install")
+        release_path = os.path.join(root, "release")
+        dev_repo_path = os.path.join(root, "developer")
 
         self.root = root
-        self.dev_repo = DeveloperPkgRepo(root)
+        self.install_path = install_path
+        self.release_path = release_path
+        self.dev_repo_path = dev_repo_path
+        self.dev_repo = DeveloperPkgRepo(dev_repo_path)
         self.settings = {
             "packages_path": [install_path, release_path],
             "local_packages_path": install_path,
             "release_packages_path": release_path,
             "plugins": {
-                "command": {"deliver": {"dev_repository_roots": [root]}}
+                "command": {"deliver": {
+                    "dev_repository_roots": [dev_repo_path]
+                }}
             }
         }
         super(TestManifest, self).setUp()
@@ -82,7 +88,7 @@ class TestManifest(TestBase):
         manifest = self.installer.manifest()
         self.assertEqual(4, len(manifest))
         for req in manifest:
-            self.assertEqual(self.installer.NotInstalled, req.status)
+            self.assertEqual(self.installer.Ready, req.status)
 
     def test_resolve_early_build(self):
 
@@ -102,7 +108,19 @@ class TestManifest(TestBase):
         manifest = self.installer.manifest()
         self.assertEqual(3, len(manifest))
         for req in manifest:
-            self.assertEqual(self.installer.NotInstalled, req.status)
+            self.assertEqual(self.installer.Ready, req.status)
+
+    def test_resolve_with_installed(self):
+        installed_repo = DeveloperPkgRepo(self.install_path)
+        installed_repo.add("bar")
+        installed_repo.add("foo", version="1", variants=[["bar"]])
+
+        self.dev_repo.add("foo", version="2", variants=[["bar"]])
+
+        self.installer.resolve("foo")
+        manifest = self.installer.manifest()
+        foo_request = next(r for r in manifest if r.name == "foo-2")
+        self.assertEqual(self.installer.Ready, foo_request.status)
 
 
 if __name__ == "__main__":

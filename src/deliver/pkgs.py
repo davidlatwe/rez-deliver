@@ -322,41 +322,194 @@ class DevRepoManager(object):
                 seen.add(name)
 
 
-class Requested(object):
+class Required(object):
     __slots__ = ("name", "index", "source", "status", "depended")
 
-    def __init__(self, name, index, source, status, depended=None):
+    def __init__(self, name, index):
         self.name = name
         self.index = index
-        self.source = source
-        self.status = status
-        self.depended = depended or []
+        self.source = None
+        self.status = None
+        self.depended = []
+
+    @classmethod
+    def get(cls, name, index=-1, from_=None):
+        from_ = from_ or []
+        try:
+            req_id = from_.index((name, index))
+        except ValueError:
+            return cls(name, index)
+        else:
+            return from_[req_id]
 
     def __eq__(self, other):
         return other == (self.name, self.index)
 
     def __repr__(self):
-        return "Requested(name='%s', index=%r, status=%s)" \
+        return "Required(name='%s', index=%r, status=%s)" \
                % (self.name,
                   self.index,
-                  PackageInstaller.StatusMapStr[self.status] or "ready")
+                  PackageInstaller.StatusMapStr[self.status])
 
 
-class PackageInstaller(object):
-    NotInstalled = 0
-    Installed = 1
-    ResolveFailed = 2
+class RequestSolver(object):
+
+    Ready = 1
+    Installed = 2
+    External = 3
+    ResolveFailed = 4
+    PackageNotFound = 5
 
     StatusMapStr = {
-        NotInstalled: "",
+        Ready: "ready",
         Installed: "installed",
+        External: "external",
         ResolveFailed: "failed",
+        PackageNotFound: "missing",
     }
 
     def __init__(self, dev_repo):
-        self.release = False
         self.dev_repo = dev_repo
         self._requirements = list()
+
+    @property
+    def installed_packages_path(self):
+        return rezconfig.packages_path
+
+    def reset(self):
+        self._requirements = []
+
+    def manifest(self):
+        return self._requirements[:]
+
+    def find_installed(self, name):
+        paths = self.installed_packages_path
+        return get_latest_package_from_string(name, paths=paths)
+
+    def zip_longest_variants(self, this, that):
+        r = (lambda requires: " ".join(str(_) for _ in requires))
+        # TODO: selecting *that_van* by the variant_requires of *this_van*
+        #   may not work if the requirement needs to be expanded but delayed.
+        #   (REP-002)
+        this_vans_ = list(this.iter_variants()) if this else []
+        that_vans_ = {
+            r(v.variant_requires): v for v in that.iter_variants()
+        } if that else dict()
+
+        longest = max(len(this_vans_), len(that_vans_))
+        for i in range(longest):
+            if this_vans_ and that_vans_:
+                this_van = this_vans_.pop(0)
+                that_van = that_vans_.pop(r(this_van.variant_requires), None)
+
+            elif this_vans_ and not that_vans_:
+                this_van = this_vans_.pop(0)
+                that_van = None
+
+            elif not this_vans_ and that_vans_:
+                this_van = None
+                _, that_van = that_vans_.popitem()
+
+            else:
+                return
+
+            yield this_van, that_van
+
+    def resolve(self, request, variant_index=None, depended=None):
+        # find latest package in requested range
+        developer = self.dev_repo.find(request)
+        installed = self.find_installed(request)
+
+        if developer is None and installed is None:
+            # package not found
+            requested = Required.get(request, from_=self._requirements)
+            requested.status = self.PackageNotFound
+            self._append(requested)
+
+            return
+
+        status = None
+
+        if developer and installed:
+            # prefer dev package if version is different
+            if developer.version > installed.version:
+                installed = None
+                status = self.Ready
+            elif developer.version < installed.version:
+                developer = None
+                status = self.Installed
+            else:
+                # same version, keep both
+                status = self.Ready
+
+        if developer:
+            name = developer.qualified_name
+            source = developer.data["__source__"]
+            status = status or self.Ready
+        else:
+            name = installed.qualified_name
+            source = installed.uri
+            status = status or self.External
+
+        # Only if developer and installed package have same version, they
+        #   both get kept and iterated together. The reason for this is
+        #   because installed package may have different variant sets than
+        #   the developer one, even they are same version. Not likely, but
+        #   could happen.
+        for d_van, i_van in self.zip_longest_variants(developer, installed):
+            variant = i_van or d_van
+            if variant_index is not None and variant_index != variant.index:
+                continue
+
+            if status == self.Ready and variant is i_van:
+                status = self.Installed
+
+            requested = Required.get(name, variant.index)
+            requested.source = source
+            requested.status = status
+
+            if depended:
+                requested.depended.append(depended)
+
+            # resolve variant's requirement
+            variant_requires = variant.get_requires(
+                build_requires=True,
+                private_build_requires=True
+            )
+            try:
+                context = self._build_context(variant_requires)
+            except (PackageFamilyNotFoundError, PackageNotFoundError) as e:
+                print(e)
+                requested.status = self.ResolveFailed
+
+            else:
+                if not context.success:
+                    context.print_info()
+                    requested.status = self.ResolveFailed
+                else:
+                    for pkg in context.resolved_packages:
+                        request_id = (pkg.qualified_package_name, pkg.index)
+                        if request_id in self._requirements:
+                            continue
+                        self.resolve(request=pkg.qualified_package_name,
+                                     variant_index=pkg.index,
+                                     depended=requested)
+            self._append(requested)
+
+    def _build_context(self, requests):
+        paths = self.installed_packages_path + self.dev_repo.paths
+        return ResolvedContext(requests, building=True, package_paths=paths)
+
+    def _append(self, requested):
+        if requested not in self._requirements:
+            self._requirements.append(requested)
+
+
+class PackageInstaller(RequestSolver):
+
+    def __init__(self, dev_repo):
+        super(PackageInstaller, self).__init__(dev_repo=dev_repo)
+        self.release = False
 
     @property
     def installed_packages_path(self):
@@ -380,19 +533,13 @@ class PackageInstaller(object):
         self.dev_repo.release = release
         self.reset()
 
-    def reset(self):
-        self._requirements = []
-
-    def manifest(self):
-        return self._requirements[:]
-
     def run(self):
         for _ in self.run_iter():
             pass
 
     def run_iter(self):
         for requested in self._requirements:
-            if requested.status != self.NotInstalled:
+            if requested.status != self.Ready:
                 # TODO: prompt warning if the status is `ResolveFailed`
                 continue
 
@@ -404,86 +551,6 @@ class PackageInstaller(object):
                             variant=requested.index)
 
             yield requested
-
-    def find_installed(self, name):
-        paths = self.installed_packages_path
-        return get_latest_package_from_string(name, paths=paths)
-
-    def resolve(self, request, variant_index=None, depended=None):
-        """"""
-        develop = self.dev_repo.find(request)
-        package = self.find_installed(request)
-
-        if develop is None and package is None:
-            # TODO: Instead of raising error, add Requested obj and mark
-            #  status as ResolveFailed
-            raise PackageNotFoundError("%s not found in develop repository "
-                                       "nor in installed package paths."
-                                       % request)
-        if develop is not None:
-            # use developer package, even there is an installed one
-            name = develop.qualified_name
-            variants = develop.iter_variants()
-            source = develop.data["__source__"]
-        else:
-            # use installed package
-            name = package.qualified_name
-            variants = package.iter_variants()
-            source = package.uri
-
-        pkg_variants_req = [] if package is None else [
-            v.variant_requires for v in package.iter_variants()
-        ]
-
-        for variant in variants:
-            if variant_index is not None and variant_index != variant.index:
-                continue
-            # create/get request item
-            exists = variant.variant_requires in pkg_variants_req
-            status = self.Installed if exists else self.NotInstalled
-            try:
-                req_id = self._requirements.index((name, variant.index))
-            except ValueError:
-                req_id = None
-                requested = Requested(name, variant.index, source, status)
-            else:
-                requested = self._requirements[req_id]
-                requested.status = status
-
-            if depended:
-                requested.depended.append(depended)
-
-            # solve
-            try:
-                context = self._build_context(variant)
-            except (PackageFamilyNotFoundError, PackageNotFoundError) as e:
-                print(e)
-                requested.status = self.ResolveFailed
-
-            else:
-                if not context.success:
-                    context.print_info()
-                    requested.status = self.ResolveFailed
-                else:
-                    for pkg in context.resolved_packages:
-                        if (pkg.qualified_package_name, pkg.index) in \
-                                self._requirements:
-                            continue
-
-                        self.resolve(request=pkg.qualified_package_name,
-                                     variant_index=pkg.index,
-                                     depended=requested)
-
-            if req_id is None:
-                self._requirements.append(requested)
-
-    def _build_context(self, variant):
-        paths = self.dev_repo.paths + self.installed_packages_path
-        pkg_requests = variant.get_requires(build_requires=True,
-                                            private_build_requires=True)
-        return ResolvedContext(pkg_requests,
-                               building=True,
-                               package_paths=paths)
 
     def _make(self, name, variant=None):
         deploy_path = self.deploy_path
