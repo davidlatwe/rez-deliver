@@ -184,6 +184,9 @@ class DevPkgRepo(Repo):
         return package
 
     def load_dev_packages(self, package):
+        if not package.uri:  # A sub-dir in Family dir without package file.
+            return
+
         pkg_path = os.path.dirname(package.uri)
         with os_chdir(pkg_path):
             # If we don't change cwd to package dir, dev package may not be
