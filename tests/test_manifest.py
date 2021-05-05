@@ -71,12 +71,15 @@ class TestManifest(TestBase):
         self.assertEqual(("bar-1", 1), (manifest[3].name, manifest[3].index))
 
     def test_resolve_with_os(self):
-        # this test requires REP-002: requirement late expansion feature
-        self.dev_repo.add("foo", version="1", variants=[["os-*"]])
+        # need to install bar first so the wildcard request can be expanded.
+        installed_repo = DeveloperPkgRepo(self.install_path)
+        installed_repo.add("bar", version="x")
+
+        self.dev_repo.add("foo", version="1", variants=[["bar-*"]])
         self.installer.resolve("foo")
 
         manifest = self.installer.manifest()
-        self.assertTrue(manifest[-2].name.startswith("os-"))
+        self.assertTrue(manifest[-2].name.startswith("bar-"))
         self.assertEqual(("foo-1", 0), (manifest[-1].name, manifest[-1].index))
 
     def test_resolve_with_variants(self):
