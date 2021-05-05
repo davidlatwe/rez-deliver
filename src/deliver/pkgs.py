@@ -265,7 +265,7 @@ class DevRepoManager(object):
         paths = [self._maker_repo.mem_uid]
         return get_latest_package_from_string(name, paths=paths)
 
-    def load(self, name=None):
+    def load(self, name=None, recursive=True):
         dev_paths = [repo.root for repo in self._dev_repos[:-1]]
         dev_paths.append(self._maker_repo.mem_uid)
         # Note that the maker repo doesn't have filesystem based package,
@@ -285,7 +285,7 @@ class DevRepoManager(object):
             for repo in self._dev_repos:
                 repo.load(name=name)
 
-        if name:
+        if name and recursive:
             # lazy load, recursively
             requires = []
             for repo in self._dev_repos:
@@ -303,9 +303,9 @@ class DevRepoManager(object):
                     seen.add(req.name)
                     self.load(name=req.name)
 
-    def find(self, request):
+    def find(self, request, load_dependency=False):
         request = PackageRequest(request)
-        self.load(name=request.name)
+        self.load(name=request.name, recursive=load_dependency)
         return get_latest_package(name=request.name,
                                   range_=request.range_,
                                   paths=self.paths)
@@ -418,7 +418,7 @@ class RequestSolver(object):
 
     def resolve(self, request, variant_index=None, depended=None):
         # find latest package in requested range
-        developer = self.dev_repo.find(request)
+        developer = self.dev_repo.find(request, load_dependency=True)
         installed = self.find_installed(request)
 
         if developer is None and installed is None:
