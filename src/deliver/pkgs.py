@@ -389,9 +389,7 @@ class RequestSolver(object):
 
     def zip_longest_variants(self, this, that):
         r = (lambda requires: " ".join(str(_) for _ in requires))
-        # TODO: selecting *that_van* by the variant_requires of *this_van*
-        #   may not work if the requirement needs to be expanded but delayed.
-        #   (REP-002)
+
         this_vans_ = list(this.iter_variants()) if this else []
         that_vans_ = {
             r(v.variant_requires): v for v in that.iter_variants()

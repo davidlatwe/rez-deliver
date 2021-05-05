@@ -70,17 +70,41 @@ class TestManifest(TestBase):
         self.assertEqual("goo-1", manifest[2].name)
         self.assertEqual(("bar-1", 1), (manifest[3].name, manifest[3].index))
 
-    def test_resolve_with_os(self):
+    def test_resolve_with_req_expansion(self):
         # need to install bar first so the wildcard request can be expanded.
         installed_repo = DeveloperPkgRepo(self.install_path)
-        installed_repo.add("bar", version="x")
+        installed_repo.add("bar", version="1.5")
+        installed_repo.add("bar", version="2.0")
 
-        self.dev_repo.add("foo", version="1", variants=[["bar-*"]])
+        self.dev_repo.add("foo", version="1", variants=[["bar-**"]])
         self.installer.resolve("foo")
 
         manifest = self.installer.manifest()
-        self.assertTrue(manifest[-2].name.startswith("bar-"))
-        self.assertEqual(("foo-1", 0), (manifest[-1].name, manifest[-1].index))
+        self.assertTrue(manifest[0].name == "bar-2.0")
+        self.assertEqual(("foo-1", 0), (manifest[1].name, manifest[1].index))
+
+    def test_resolve_with_req_directive(self):
+        # need to install bar first so the request can be expanded.
+        installed_repo = DeveloperPkgRepo(self.install_path)
+        installed_repo.add("bar", version="1.5")
+        installed_repo.add("bar", version="2.0")
+
+        self.dev_repo.add("foo", version="1", variants=[["bar-1//harden"]])
+        self.installer.resolve("foo")
+
+        manifest = self.installer.manifest()
+        self.assertTrue(manifest[0].name == "bar-1.5")
+        self.assertEqual(("foo-1", 0), (manifest[1].name, manifest[1].index))
+
+    def test_resolve_with_req_directive_but_no_pre_installed(self):
+        self.dev_repo.add("bar", version="1.5")
+        self.dev_repo.add("bar", version="2.0")
+        self.dev_repo.add("foo", version="1", variants=[["bar-1//harden"]])
+        self.installer.resolve("foo")
+
+        manifest = self.installer.manifest()
+        self.assertTrue(manifest[0].name == "bar-1.5")
+        self.assertEqual(("foo-1", 0), (manifest[1].name, manifest[1].index))
 
     def test_resolve_with_variants(self):
         self.dev_repo.add("python", version="2.7")

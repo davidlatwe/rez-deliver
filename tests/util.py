@@ -11,11 +11,16 @@ from rez.package_maker import PackageMaker, package_schema
 from rez.package_resources import package_pod_schema
 from rez.config import config, _create_locked_config
 from rez.serialise import process_python_objects
-from rez.vendor.schema.schema import Or
+from rez.utils.formatting import PackageRequest
+from rez.vendor.schema.schema import Schema, Optional, Use, And, Or
 from rez.serialise import FileFormat
 from rez.package_serialise import (
     package_serialise_schema,
     dump_package_data,
+)
+from rez.utils.request_directives import (
+    filter_directive_requires,
+    _validate_partial,
 )
 
 
@@ -125,6 +130,8 @@ class DeveloperPkgRepo(PkgRepo):
                     kwargs[key] = SourceCode(func=value,
                                              eval_as_function=True)
 
+        kwargs, directives = filter_directive_requires(kwargs)
+
         maker = PackageMaker(name, data=kwargs)
         package = maker.get_package()
         data = package.data
@@ -138,10 +145,36 @@ class DeveloperPkgRepo(PkgRepo):
 
         process_python_objects(data)
 
+        self._restore_directives(data, directives)
+
         filepath = os.path.join(pkg_base_path, "package.py")
         os.makedirs(pkg_base_path, exist_ok=True)
         with open(filepath, "w") as f:
             dump_package_data(data, buf=f, format_=FileFormat.py)
+
+    def _restore_directives(self, data, directives):
+
+        def evaluate_directive(request):
+            request = PackageRequest(request)
+            directive = directives.get(request.name)
+            if directive:
+                # TODO: directive should be able to return original request str
+                request = directive.get_pre_build_request()
+                return str(request) + "//harden"
+            else:
+                return str(request)
+
+        evaluation_schema = And(str, Use(evaluate_directive))
+
+        requires_evaluation_schema = Schema({
+            Optional("requires"): [evaluation_schema],
+            Optional("build_requires"): [evaluation_schema],
+            Optional("private_build_requires"): [evaluation_schema],
+            Optional("variants"): [[evaluation_schema]],
+        })
+
+        validated = _validate_partial(requires_evaluation_schema, data)
+        data.update(validated)
 
 
 def early():
