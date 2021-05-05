@@ -268,7 +268,7 @@ class DevRepoManager(object):
     def load(self, name=None, recursive=True):
         dev_paths = [repo.root for repo in self._dev_repos[:-1]]
         dev_paths.append(self._maker_repo.mem_uid)
-        # Note that the maker repo doesn't have filesystem based package,
+        # Noted that the maker repo doesn't have filesystem based package,
         #   use memory path `mem_uid` as root instead.
 
         with override_config({
