@@ -166,20 +166,21 @@ class DevPkgRepo(Repo):
 
     def _load_re_evaluated_dev_package(self, pkg_path):
         package = DeveloperPackage.from_path(pkg_path)
+        package.data["re_evaluated_variants"] = list()
 
-        re_evaluated_variants = list()
         for variant in package.iter_variants():
             index = variant.index
-            with set_objects({
+
+            re_evaluated_package = package.get_reevaluated({
                 "building": True,
                 "build_variant_index": index or 0,
                 "build_variant_requires": variant.variant_requires
-            }):
-                re_evaluated_package = DeveloperPackage.from_path(pkg_path)
+            })
             re_evaluated_variant = re_evaluated_package.get_variant(index)
-            re_evaluated_variants.append(re_evaluated_variant.resource)
 
-        package.data["re_evaluated_variants"] = re_evaluated_variants
+            package.data["re_evaluated_variants"].append(
+                re_evaluated_variant.resource
+            )
 
         return package
 
