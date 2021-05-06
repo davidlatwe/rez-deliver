@@ -3,20 +3,19 @@ import os
 import unittest
 
 from rez.utils.sourcecode import _add_decorator, SourceCode, late
-from rez.package_repository import package_repository_manager
 from rez.config import config, _create_locked_config
 from rez.package_serialise import dump_package_data
 from rez.serialise import process_python_objects
-from rez.package_maker import PackageMaker
 from rez.serialise import FileFormat
 
 
 __all__ = [
     "TestBase",
-    "MemoryPkgRepo",
     "DeveloperPkgRepo",
+
     "early",
     "late",
+    "building",
 ]
 
 
@@ -47,39 +46,16 @@ class TestBase(unittest.TestCase):
         self._config = None
 
 
-class PkgRepo(object):
+class DeveloperPkgRepo(object):
+    """A repository that able to read/write developer packages"""
+
     def __init__(self, path):
         self._path = path
+        self._out_early_enabled = False
 
     @property
     def path(self):
         return self._path
-
-
-class MemoryPkgRepo(PkgRepo):
-
-    def __init__(self, ident):
-        super(MemoryPkgRepo, self).__init__("memory@" + ident)
-        self._repo = package_repository_manager.get_repository(self._path)
-
-    def add(self, name, **kwargs):
-        maker = PackageMaker(name, data=kwargs)
-        package = maker.get_package()
-        data = package.data
-        version = data.get("version", "_NO_VERSION")
-
-        mem_data = self._repo.data
-        if name not in mem_data:
-            mem_data[name] = dict()
-        mem_data[name].update({version: data})
-
-
-class DeveloperPkgRepo(PkgRepo):
-    """A repository that able to read/write developer packages"""
-
-    def __init__(self, path):
-        super(DeveloperPkgRepo, self).__init__(path=path)
-        self._out_early_enabled = False
 
     def add(self, name, **kwargs):
         data = kwargs
@@ -117,3 +93,6 @@ def early():
         return fn
 
     return decorated
+
+
+building = None
