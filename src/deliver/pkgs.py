@@ -504,6 +504,18 @@ class RequestSolver(object):
             yield this_van, that_van
 
     def resolve(self, request, variant_index=None):
+        """Resolve request and it's dependencies recursively
+
+        Call `manifest()` to show resolved requirements.
+
+        Args:
+            request (str): Package request string
+            variant_index (int): Variant index, optional.
+
+        Returns:
+            None
+
+        """
         # find latest package in requested range
         developer = self.loader.find(request, load_dependency=True)
         installed = self.find_installed(request)
