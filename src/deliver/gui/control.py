@@ -8,11 +8,11 @@ from .. import pkgs
 class State(dict):
 
     def __init__(self, storage):
-        dev_repo = pkgs.DevRepoManager()
-        installer = pkgs.PackageInstaller(dev_repo)
+        loader = pkgs.PackageLoader()
+        installer = pkgs.PackageInstaller(loader)
 
         super(State, self).__init__({
-            "devRepoRoot": dev_repo,
+            "loader": loader,
             "installer": installer,
             "deployPaths": rezconfig.packages_path[:],
         })
@@ -96,7 +96,7 @@ class Controller(QtCore.QObject):
         timer.start(on_time)
 
     def on_package_searched(self):
-        self._state["devRepoRoot"].load()
+        self._state["loader"].load()
         self._models["pkgBook"].reset(self.iter_dev_packages())
 
     def on_target_changed(self, path):
@@ -118,10 +118,10 @@ class Controller(QtCore.QObject):
         util.defer(install)
 
     def iter_dev_packages(self):
-        dev_repo = self._state["devRepoRoot"]
+        loader = self._state["loader"]
         seen = dict()
 
-        for family in dev_repo.iter_package_families():
+        for family in loader.iter_package_families():
             name = family.name
             path = family.resource.location
 
@@ -147,8 +147,8 @@ class Controller(QtCore.QObject):
                 yield doc
 
     def find_dev_package(self, name):
-        dev_repo = self._state["devRepoRoot"]
-        return dev_repo.find(name)
+        loader = self._state["loader"]
+        return loader.find(name)
 
     def resolve_requests(self):
         installer = self._state["installer"]

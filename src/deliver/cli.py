@@ -1,21 +1,21 @@
 
-from . import pkgs
+from deliver import pkgs
 
 
 def list_developer_packages(requests=None):
 
-    dev_repo = pkgs.DevRepoManager()
+    loader = pkgs.PackageLoader()
 
     if not requests:
         # list all developer package family name
-        names = sorted(dev_repo.iter_package_names())
+        names = sorted(loader.iter_package_names())
         for n in names:
             print(n)
 
     else:
         names = list()
         for request in requests:
-            pkg = dev_repo.find(request)
+            pkg = loader.find(request)
             if pkg is None:
                 print("Package not found in this repository: %s" % request)
                 continue
@@ -24,7 +24,7 @@ def list_developer_packages(requests=None):
         print("\nPackages available in this repository:")
         print("=" * 30)
 
-        for family in dev_repo.iter_package_families():
+        for family in loader.iter_package_families():
             if family.name in names:
                 for package in family.iter_packages():
                     print(package.qualified_name)
@@ -32,8 +32,8 @@ def list_developer_packages(requests=None):
 
 def deploy_packages(requests, path, dry_run=False, yes=False):
 
-    dev_repo = pkgs.DevRepoManager()
-    installer = pkgs.PackageInstaller(dev_repo)
+    loader = pkgs.PackageLoader()
+    installer = pkgs.PackageInstaller(loader)
     installer.target(path)
 
     # variant specification isn't support in CLI mode

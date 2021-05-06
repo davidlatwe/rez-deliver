@@ -1,4 +1,14 @@
+"""A module that meant to find/resolve/install developer packages
 
+Example:
+    # setup rez-deliver config so it could find developer package
+    >>> loader = PackageLoader()
+    >>> installer = PackageInstaller(loader)
+    >>> installer.resolve("foo")
+    >>> installer.manifest()
+    >>> installer.run()
+
+"""
 import os
 import logging
 import functools
@@ -15,34 +25,27 @@ from rez.packages import get_latest_package_from_string, get_latest_package
 from rez.package_repository import package_repository_manager
 from rez.exceptions import PackageFamilyNotFoundError, PackageNotFoundError
 
-from .maker.os import pkg_os
-from .maker.arch import pkg_arch
-from .maker.platform import pkg_platform
-from .maker.rez import pkg_rez
+from deliver.maker.os import pkg_os
+from deliver.maker.arch import pkg_arch
+from deliver.maker.platform import pkg_platform
+from deliver.maker.rez import pkg_rez
 
 
 # silencing rez logger, e.g. on package preprocessing
 rez_logger.setLevel(logging.WARNING)
 
 
-"""
-FileSystem Repo(s)  BindPackageRepo
- |                      |
- |                      |
- |         *------------*
- |         |
- V         V
-MainMemoryRepo
-
-
-"""
-
-
 class Repo(object):
+    """Base class of developer package repository, internal used."""
 
-    def __init__(self, root, manager):
+    def __init__(self, root, loader):
+        """
+        Args:
+            root: the location of developer package repository
+            loader: an instance of `PackageLoader`
+        """
         self._root = root
-        self._manager = manager
+        self._loader = loader
         self._loaded = set()
         self._all_loaded = False
 
@@ -51,7 +54,19 @@ class Repo(object):
         return uid == self.mem_uid
 
     def _load_build_time_variants(self, package):
-        package.data["_build_time_variant_resources"] = list()
+        """Re-evaluate package variants as build-time mode
+
+        Package should be re-evaluated for each variant as in build so to
+        get the correct variant build-requires.
+
+        Args:
+            package (`DeveloperPackage`): an instance of DeveloperPackage
+
+        Returns:
+            `DeveloperPackage`: the input `package` itself
+
+        """
+        resources = list()
 
         for variant in package.iter_variants():
             index = variant.index
@@ -62,15 +77,21 @@ class Repo(object):
                 "build_variant_requires": variant.variant_requires
             })
             re_evaluated_variant = re_evaluated_package.get_variant(index)
+            # noted that here is the resource object being collected
+            resources.append(re_evaluated_variant.resource)
 
-            package.data["_build_time_variant_resources"].append(
-                re_evaluated_variant.resource
-            )
+        if resources:
+            # Here we preserve each re-evaluated variant's resource object,
+            # see `deliver.rezplugins.package_repository.buildtime` for how
+            # they will be retrieved.
+            package.data["_build_time_variant_resources"] = resources
 
         return package
 
     @property
     def mem_uid(self):
+        # noted that here we use the `buildtime` memory repository plugin
+        # to preserve loaded developer packages.
         return "buildtime@" + self._root
 
     @property
@@ -119,8 +140,8 @@ class Repo(object):
 
 class MakePkgRepo(Repo):
 
-    def __init__(self, manager):
-        Repo.__init__(self, root="rez:package_maker", manager=manager)
+    def __init__(self, loader):
+        Repo.__init__(self, root="rez:package_maker", loader=loader)
 
     @property
     def makers(self):
@@ -150,7 +171,7 @@ class MakePkgRepo(Repo):
             yield name
 
     def _make_package(self, name):
-        release = self._manager.release
+        release = self._loader.release
         func = self.makers.get(name)
         if func is not None:
             maker = func(release=release)
@@ -226,13 +247,13 @@ class DevPkgRepo(Repo):
                 yield self._load_build_time_variants(package)
 
 
-class DevRepoManager(object):
+class PackageLoader(object):
 
     def __init__(self):
         deliverconfig = rezconfig.plugins.command.deliver
-        maker_repo = MakePkgRepo(manager=self)
+        maker_repo = MakePkgRepo(loader=self)
         dev_repos = [
-            DevPkgRepo(root=expand_path(root), manager=self)
+            DevPkgRepo(root=expand_path(root), loader=self)
             for root in deliverconfig.dev_repository_roots
         ]
         dev_repos += [maker_repo]
@@ -357,8 +378,8 @@ class RequestSolver(object):
         PackageNotFound: "missing",
     }
 
-    def __init__(self, dev_repo):
-        self.dev_repo = dev_repo
+    def __init__(self, loader):
+        self.loader = loader
         self._requirements = list()
 
     @property
@@ -404,7 +425,7 @@ class RequestSolver(object):
 
     def resolve(self, request, variant_index=None, depended=None):
         # find latest package in requested range
-        developer = self.dev_repo.find(request, load_dependency=True)
+        developer = self.loader.find(request, load_dependency=True)
         installed = self.find_installed(request)
 
         if developer is None and installed is None:
@@ -484,7 +505,7 @@ class RequestSolver(object):
             self._append(requested)
 
     def _build_context(self, requests):
-        paths = self.installed_packages_path + self.dev_repo.paths
+        paths = self.installed_packages_path + self.loader.paths
         return ResolvedContext(requests, building=True, package_paths=paths)
 
     def _append(self, requested):
@@ -494,8 +515,8 @@ class RequestSolver(object):
 
 class PackageInstaller(RequestSolver):
 
-    def __init__(self, dev_repo):
-        super(PackageInstaller, self).__init__(dev_repo=dev_repo)
+    def __init__(self, loader):
+        super(PackageInstaller, self).__init__(loader=loader)
         self.release = False
 
     @property
@@ -517,7 +538,7 @@ class PackageInstaller(RequestSolver):
 
         print("Mode: %s" % ("release" if release else "install"))
         self.release = release
-        self.dev_repo.release = release
+        self.loader.release = release
         self.reset()
 
     def run(self):
@@ -530,7 +551,7 @@ class PackageInstaller(RequestSolver):
                 # TODO: prompt warning if the status is `ResolveFailed`
                 continue
 
-            if requested.source == self.dev_repo.maker_root:
+            if requested.source == self.loader.maker_root:
                 self._make(requested.name,
                            variant=requested.index)
             else:
@@ -544,7 +565,7 @@ class PackageInstaller(RequestSolver):
         if not os.path.isdir(deploy_path):
             os.makedirs(deploy_path)
 
-        made_pkg = self.dev_repo.get_maker_made_package(name)
+        made_pkg = self.loader.get_maker_made_package(name)
         made_pkg.__install__(deploy_path, variant)
 
         clear_repo_cache(deploy_path)

@@ -4,7 +4,7 @@ import time
 import shutil
 import tempfile
 import unittest
-from deliver.pkgs import DevRepoManager, PackageInstaller
+from deliver.pkgs import PackageLoader, PackageInstaller
 from .util import TestBase
 from .ghostwriter import DeveloperRepository, early, late, building
 
@@ -34,7 +34,7 @@ class TestManifest(TestBase):
         }
         super(TestManifest, self).setUp()
 
-        self.installer = PackageInstaller(DevRepoManager())
+        self.installer = PackageInstaller(PackageLoader())
 
     def tearDown(self):
         # from rez.serialise import clear_file_caches

@@ -45,17 +45,17 @@ _regex_pypi_rez_ver = re.compile('.*<h1 class="package-header__name">'
 
 
 def find_python_package_versions(release):
-    from ..pkgs import DevRepoManager
+    from deliver.pkgs import PackageLoader
 
     python = "python"
     versions = set()
 
-    dev_repo = DevRepoManager()
-    dev_repo.load(name=python)
+    loader = PackageLoader()
+    loader.load(name=python)
 
     paths = rezconfig.nonlocal_packages_path[:] if release \
         else rezconfig.packages_path[:]
-    paths += dev_repo.paths
+    paths += loader.paths
 
     for package in iter_packages(python, paths=paths):
         versions.add(package.version)
