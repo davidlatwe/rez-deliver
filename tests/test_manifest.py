@@ -5,7 +5,7 @@ import shutil
 import tempfile
 import unittest
 from deliver.pkgs import DevRepoManager, PackageInstaller
-from .util import TestBase, DeveloperPkgRepo, early
+from .util import TestBase, DeveloperPkgRepo, early, late, building
 
 
 class TestManifest(TestBase):
@@ -126,10 +126,9 @@ class TestManifest(TestBase):
             else:
                 return ["!ehh"]
 
-        with self.dev_repo.enable_out_early():
-            self.dev_repo.add("foo", requires=["bar", "ehh"])
-            self.dev_repo.add("bar", requires=bar_requires)
-            self.dev_repo.add("ehh")
+        self.dev_repo.add("foo", requires=["bar", "ehh"])
+        self.dev_repo.add("bar", requires=bar_requires)
+        self.dev_repo.add("ehh")
 
         self.installer.resolve("foo")
         manifest = self.installer.manifest()
