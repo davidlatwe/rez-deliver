@@ -149,6 +149,34 @@ class TestManifest(TestBase):
         foo_request = next(r for r in manifest if r.name == "foo-2")
         self.assertEqual(self.installer.Ready, foo_request.status)
 
+    def test_resolve_with_external(self):
+        # TODO: External package (installed but not in developer repository)
+        #   is being required by current installation requested package, and
+        #   although external package's requirement does exists in developer
+        #   repository, the installation still cannot be resolved.
+        #   -
+        #   This is because the external package's requirement is not been
+        #   evaluated and the loader is in lazy load mode by default.
+        #   -
+        #   To solve this, parse package name from PackageNotFoundError and
+        #   try find it from developer repository, re-resolve build context
+        #   if found, or print the error as warning.
+        #   -
+        #   Try counting error for same missing package, and print warning
+        #   only once.
+        #
+        installed_repo = DeveloperRepository(self.install_path)
+        installed_repo.add("ext", requires=["bar"])
+
+        self.dev_repo.add("foo", requires=["ext"], variants=[["egg"], ["nut"]])
+        self.dev_repo.add("bar")
+        self.dev_repo.add("egg")
+        self.dev_repo.add("nut")
+
+        self.installer.resolve("foo")
+        manifest = self.installer.manifest()
+        self.assertEqual(manifest[0].status, self.installer.ResolveFailed)
+
 
 if __name__ == "__main__":
     unittest.main()
