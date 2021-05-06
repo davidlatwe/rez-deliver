@@ -2,8 +2,7 @@
 
 Example:
     # setup rez-deliver config so it could find developer package
-    >>> loader = PackageLoader()
-    >>> installer = PackageInstaller(loader)
+    >>> installer = PackageInstaller()
     >>> installer.resolve("foo")
     >>> installer.manifest()
     >>> installer.run()
@@ -379,7 +378,7 @@ class RequestSolver(object):
     }
 
     def __init__(self, loader):
-        self.loader = loader
+        self.loader = loader or PackageLoader()
         self._requirements = list()
 
     @property
@@ -515,7 +514,7 @@ class RequestSolver(object):
 
 class PackageInstaller(RequestSolver):
 
-    def __init__(self, loader):
+    def __init__(self, loader=None):
         super(PackageInstaller, self).__init__(loader=loader)
         self.release = False
 
