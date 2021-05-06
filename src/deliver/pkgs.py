@@ -111,7 +111,16 @@ class Repo(object):
         raise NotImplementedError
 
     def load(self, name=None):
-        """Load dev-packages into memory repository"""
+        """Load dev-packages into build-time memory repository
+
+        Args:
+            name (str): package family name, optional.
+                All packages will be loaded if family name not given.
+
+        Returns:
+            None
+
+        """
         if self._all_loaded:
             return
 
@@ -138,6 +147,7 @@ class Repo(object):
 
 
 class MakePkgRepo(Repo):
+    """A set of pre-defined package-maker generated packages, like rez-bind"""
 
     def __init__(self, loader):
         Repo.__init__(self, root="rez:package_maker", loader=loader)
@@ -179,6 +189,30 @@ class MakePkgRepo(Repo):
 
 
 class DevPkgRepo(Repo):
+    """Developer package repository that can work with git tag
+
+    If the developer package has an attribute `git_url` that returns a valid
+    git-remote url string, and `git` exists in $PATH, git tags will be fetched
+    from remote and generate package per tag into different versions.
+
+    Example:
+        # package.py
+
+        git_url = "https://github.com/davidlatwe/delivertest.git"
+
+        @early()
+        def version():
+            import os
+
+            package_ver = "p1"
+            payload_ver = os.getenv("REZ_DELIVER_PKG_PAYLOAD_VER")
+
+            if payload_ver:
+                return "%s-%s" % (payload_ver, package_ver)
+            else:
+                return "0.0.0-" + package_ver
+
+    """
 
     def iter_dev_packages(self):
         for family in iter_package_families(paths=[self._root]):
@@ -247,6 +281,22 @@ class DevPkgRepo(Repo):
 
 
 class PackageLoader(object):
+    """Load developer packages from multiple repositories
+
+    The loader will look for packages from all registered repository paths in
+    rezconfig. For example:
+
+        # rezconfig.py
+        plugins = {
+            "command": {
+                "deliver": {
+                    "dev_repository_roots": [
+                        "/path/to/yours",
+                        "/path/to/shared",
+                    ],
+        }}}
+
+    """
 
     def __init__(self):
         deliverconfig = rezconfig.plugins.command.deliver
@@ -273,7 +323,18 @@ class PackageLoader(object):
         paths = [self._maker_repo.mem_uid]
         return get_latest_package_from_string(name, paths=paths)
 
-    def load(self, name=None, recursive=True):
+    def load(self, name=None, dependency=True):
+        """Load package and it's dependencies optionally from all repositories
+
+        Args:
+            name (str): package family name, optional. Load all if not given.
+            dependency (bool): If True and `name` given, load all dependencies
+                recursively.
+
+        Returns:
+            None
+
+        """
         dev_paths = [repo.root for repo in self._dev_repos[:-1]]
         dev_paths.append(self._maker_repo.mem_uid)
         # Noted that the maker repo doesn't have filesystem based package,
@@ -293,7 +354,7 @@ class PackageLoader(object):
             for repo in self._dev_repos:
                 repo.load(name=name)
 
-        if name and recursive:
+        if name and dependency:
             # lazy load, recursively
             requires = []
             for repo in self._dev_repos:
@@ -312,8 +373,19 @@ class PackageLoader(object):
                     self.load(name=req.name)
 
     def find(self, request, load_dependency=False):
+        """Find requested latest package
+
+        Args:
+            request (str): package request string
+            load_dependency (bool): If True, the dependency will be loaded
+                recursively before returning searched result.
+
+        Returns:
+            `Package`: latest package in requested range, None if not found.
+
+        """
         request = PackageRequest(request)
-        self.load(name=request.name, recursive=load_dependency)
+        self.load(name=request.name, dependency=load_dependency)
         return get_latest_package(name=request.name,
                                   range_=request.range_,
                                   paths=self.paths)
