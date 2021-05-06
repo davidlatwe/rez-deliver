@@ -1,4 +1,5 @@
 
+import re
 from deliver import pkgs
 
 
@@ -31,15 +32,24 @@ def list_developer_packages(requests=None):
 
 
 def deploy_packages(requests, path, dry_run=False, yes=False):
+    variant_index_regex = re.compile(r"(.+)\[([0-9]+)]")
 
     installer = pkgs.PackageInstaller()
     installer.target(path)
 
-    # variant specification isn't support in CLI mode
     for req in requests:
-        installer.resolve(req)
+        result = variant_index_regex.split(req)
+        index = None
+        if not result[0]:
+            req, index = result[1:3]
+            index = int(index)
+        installer.resolve(req, variant_index=index)
 
     manifest = installer.manifest()
+
+    if not manifest:
+        print("No package to deploy.")
+        return
 
     names = [
         ("%s" % requested.name)
@@ -53,9 +63,7 @@ def deploy_packages(requests, path, dry_run=False, yes=False):
     for i, requested in enumerate(manifest):
         template = " %%-%ds | %%s" % _max_name_len
         status = "(%s)" % pkgs.PackageInstaller.StatusMapStr[requested.status]
-        is_installed = requested.status == pkgs.PackageInstaller.Installed
-        line = template % (names[i],
-                           status if is_installed else requested.source)
+        line = template % (names[i], status)
         print(line)
 
     if dry_run:
