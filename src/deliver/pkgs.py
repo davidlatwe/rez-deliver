@@ -50,9 +50,28 @@ class Repo(object):
         uid = "@".join(pkg.parent.repository.uid[:2])
         return uid == self.mem_uid
 
+    def _load_build_time_variants(self, package):
+        package.data["_build_time_variant_resources"] = list()
+
+        for variant in package.iter_variants():
+            index = variant.index
+
+            re_evaluated_package = package.get_reevaluated({
+                "building": True,
+                "build_variant_index": index or 0,
+                "build_variant_requires": variant.variant_requires
+            })
+            re_evaluated_variant = re_evaluated_package.get_variant(index)
+
+            package.data["_build_time_variant_resources"].append(
+                re_evaluated_variant.resource
+            )
+
+        return package
+
     @property
     def mem_uid(self):
-        return "vmemory@" + self._root
+        return "buildtime@" + self._root
 
     @property
     def mem_repo(self):
@@ -200,29 +219,11 @@ class DevPkgRepo(Repo):
                 for ver_tag in self._git_tags(git_url):
                     # generate versions from git tags
                     with temp_env("REZ_DELIVER_PKG_PAYLOAD_VER", ver_tag):
-                        yield self._load_re_evaluated_dev_package(pkg_path)
+                        package = DeveloperPackage.from_path(pkg_path)
+                        yield self._load_build_time_variants(package)
             else:
-                yield self._load_re_evaluated_dev_package(pkg_path)
-
-    def _load_re_evaluated_dev_package(self, pkg_path):
-        package = DeveloperPackage.from_path(pkg_path)
-        package.data["re_evaluated_variants"] = list()
-
-        for variant in package.iter_variants():
-            index = variant.index
-
-            re_evaluated_package = package.get_reevaluated({
-                "building": True,
-                "build_variant_index": index or 0,
-                "build_variant_requires": variant.variant_requires
-            })
-            re_evaluated_variant = re_evaluated_package.get_variant(index)
-
-            package.data["re_evaluated_variants"].append(
-                re_evaluated_variant.resource
-            )
-
-        return package
+                package = DeveloperPackage.from_path(pkg_path)
+                yield self._load_build_time_variants(package)
 
 
 class DevRepoManager(object):
