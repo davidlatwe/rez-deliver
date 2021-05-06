@@ -212,6 +212,13 @@ class DevPkgRepo(Repo):
             else:
                 return "0.0.0-" + package_ver
 
+    Note:
+        You may want to use this kind of package version specification:
+
+            <package payload version>-<package definition version>
+
+        E.g. `0.1.0-p1`
+
     """
 
     def iter_dev_packages(self):
