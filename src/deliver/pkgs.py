@@ -459,6 +459,7 @@ class RequestSolver(object):
     def __init__(self, loader):
         self.loader = loader or PackageLoader()
         self._requirements = list()
+        self.__depended = None
 
     @property
     def installed_packages_path(self):
@@ -466,6 +467,7 @@ class RequestSolver(object):
 
     def reset(self):
         self._requirements = []
+        self.__depended = None
 
     def manifest(self):
         return self._requirements[:]
@@ -501,7 +503,7 @@ class RequestSolver(object):
 
             yield this_van, that_van
 
-    def resolve(self, request, variant_index=None, depended=None):
+    def resolve(self, request, variant_index=None):
         # find latest package in requested range
         developer = self.loader.find(request, load_dependency=True)
         installed = self.find_installed(request)
@@ -554,8 +556,8 @@ class RequestSolver(object):
             requested.source = source
             requested.status = status
 
-            if depended:
-                requested.depended.append(depended)
+            if self.__depended:
+                requested.depended.append(self.__depended)
 
             # resolve variant's requirement
             variant_requires = variant.get_requires(
@@ -577,10 +579,11 @@ class RequestSolver(object):
                         request_id = (pkg.qualified_package_name, pkg.index)
                         if request_id in self._requirements:
                             continue
+                        self.__depended = requested
                         self.resolve(request=pkg.qualified_package_name,
-                                     variant_index=pkg.index,
-                                     depended=requested)
+                                     variant_index=pkg.index)
             self._append(requested)
+        self.__depended = None  # reset
 
     def _build_context(self, requests):
         paths = self.installed_packages_path + self.loader.paths
