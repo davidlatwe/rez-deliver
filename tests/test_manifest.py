@@ -5,7 +5,8 @@ import shutil
 import tempfile
 import unittest
 from deliver.pkgs import DevRepoManager, PackageInstaller
-from .util import TestBase, DeveloperPkgRepo, early, late, building
+from .util import TestBase
+from .ghostwriter import DeveloperRepository, early, late, building
 
 
 class TestManifest(TestBase):
@@ -20,7 +21,7 @@ class TestManifest(TestBase):
         self.install_path = install_path
         self.release_path = release_path
         self.dev_repo_path = dev_repo_path
-        self.dev_repo = DeveloperPkgRepo(dev_repo_path)
+        self.dev_repo = DeveloperRepository(dev_repo_path)
         self.settings = {
             "packages_path": [install_path, release_path],
             "local_packages_path": install_path,
@@ -72,7 +73,7 @@ class TestManifest(TestBase):
 
     def test_resolve_with_req_expansion(self):
         # need to install bar first so the wildcard request can be expanded.
-        installed_repo = DeveloperPkgRepo(self.install_path)
+        installed_repo = DeveloperRepository(self.install_path)
         installed_repo.add("bar", version="1.5")
         installed_repo.add("bar", version="2.0")
 
@@ -85,7 +86,7 @@ class TestManifest(TestBase):
 
     def test_resolve_with_req_directive(self):
         # need to install bar first so the request can be expanded.
-        installed_repo = DeveloperPkgRepo(self.install_path)
+        installed_repo = DeveloperRepository(self.install_path)
         installed_repo.add("bar", version="1.5")
         installed_repo.add("bar", version="2.0")
 
@@ -137,7 +138,7 @@ class TestManifest(TestBase):
             self.assertEqual(self.installer.Ready, req.status)
 
     def test_resolve_with_installed(self):
-        installed_repo = DeveloperPkgRepo(self.install_path)
+        installed_repo = DeveloperRepository(self.install_path)
         installed_repo.add("bar")
         installed_repo.add("foo", version="1", variants=[["bar"]])
 
