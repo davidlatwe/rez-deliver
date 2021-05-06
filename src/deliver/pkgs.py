@@ -459,6 +459,8 @@ class RequestSolver(object):
     def __init__(self, loader):
         self.loader = loader or PackageLoader()
         self._requirements = list()
+        self._implicits = list()  # TODO: Implement version picking
+        self._conflicts = list()
         self.__depended = None
 
     @property
@@ -597,8 +599,9 @@ class RequestSolver(object):
             self._append(requested)
         self.__depended = None  # reset
 
-    def _build_context(self, requests):
+    def _build_context(self, variant_requires):
         paths = self.installed_packages_path + self.loader.paths
+        requests = variant_requires + self._implicits + self._conflicts
         return ResolvedContext(requests, building=True, package_paths=paths)
 
     def _append(self, requested):
