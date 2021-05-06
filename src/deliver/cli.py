@@ -32,8 +32,7 @@ def list_developer_packages(requests=None):
 
 def deploy_packages(requests, path, dry_run=False, yes=False):
 
-    loader = pkgs.PackageLoader()
-    installer = pkgs.PackageInstaller(loader)
+    installer = pkgs.PackageInstaller()
     installer.target(path)
 
     # variant specification isn't support in CLI mode
