@@ -5,7 +5,6 @@ import functools
 import subprocess
 import contextlib
 
-from rez.serialise import set_objects
 from rez.config import config as rezconfig
 from rez.packages import iter_package_families
 from rez.utils.formatting import PackageRequest
@@ -24,18 +23,6 @@ from .maker.rez import pkg_rez
 
 # silencing rez logger, e.g. on package preprocessing
 rez_logger.setLevel(logging.WARNING)
-
-
-def expand_path(path):
-    path = functools.reduce(
-        lambda _p, f: f(_p),
-        [path,
-         os.path.expanduser,
-         os.path.expandvars,
-         os.path.normpath]
-    )
-
-    return path
 
 
 """
@@ -125,22 +112,14 @@ class MakePkgRepo(Repo):
             "rez": pkg_rez,
         }
 
-    def make_package(self, name):
-        release = self._manager.release
-        func = self.makers.get(name)
-        if func is not None:
-            maker = func(release=release)
-            maker.__source__ = self.root
-            return maker.get_package()
-
     def iter_dev_packages(self):
         for name in self.makers:
-            package = self.make_package(name)
+            package = self._make_package(name)
             data = package.data
             yield name, {data["version"]: data}
 
     def get_dev_package_versions(self, name):
-        package = self.make_package(name)
+        package = self._make_package(name)
         if package:
             data = package.data
             version = data.get("version", "_NO_VERSION")
@@ -151,8 +130,48 @@ class MakePkgRepo(Repo):
         for name in self.makers:
             yield name
 
+    def _make_package(self, name):
+        release = self._manager.release
+        func = self.makers.get(name)
+        if func is not None:
+            maker = func(release=release)
+            maker.__source__ = self.root
+            return maker.get_package()
+
 
 class DevPkgRepo(Repo):
+
+    def iter_dev_packages(self):
+        for family in iter_package_families(paths=[self._root]):
+            name = family.name  # package dir name
+            versions = dict()
+
+            for version, data in self._generate_dev_packages(family):
+                versions[version] = data
+
+            yield name, versions
+
+    def get_dev_package_versions(self, name):
+        it = iter_package_families(paths=[self._root])
+        family = next((f for f in it if f.name == name), None)
+        if family is None:
+            return
+
+        for version, data in self._generate_dev_packages(family):
+            yield version, data
+
+    def iter_package_names(self):
+        for family in iter_package_families(paths=[self._root]):
+            yield family.name  # package dir name
+
+    def _generate_dev_packages(self, family):
+        for package in family.iter_packages():
+            for dev_package in self._load_dev_packages(package):
+                data = dev_package.data.copy()
+                data["__source__"] = dev_package.filepath
+                version = data.get("version", "_NO_VERSION")
+
+                yield version, data
 
     def _git_tags(self, url):
         args = ["git", "ls-remote", "--tags", url]
@@ -164,27 +183,7 @@ class DevPkgRepo(Repo):
             for line in output.splitlines():
                 yield line.split("refs/tags/")[-1]
 
-    def _load_re_evaluated_dev_package(self, pkg_path):
-        package = DeveloperPackage.from_path(pkg_path)
-        package.data["re_evaluated_variants"] = list()
-
-        for variant in package.iter_variants():
-            index = variant.index
-
-            re_evaluated_package = package.get_reevaluated({
-                "building": True,
-                "build_variant_index": index or 0,
-                "build_variant_requires": variant.variant_requires
-            })
-            re_evaluated_variant = re_evaluated_package.get_variant(index)
-
-            package.data["re_evaluated_variants"].append(
-                re_evaluated_variant.resource
-            )
-
-        return package
-
-    def load_dev_packages(self, package):
+    def _load_dev_packages(self, package):
         if not package.uri:  # A sub-dir in Family dir without package file.
             return
 
@@ -205,37 +204,25 @@ class DevPkgRepo(Repo):
             else:
                 yield self._load_re_evaluated_dev_package(pkg_path)
 
-    def generate_dev_packages(self, family):
-        for package in family.iter_packages():
-            for dev_package in self.load_dev_packages(package):
-                data = dev_package.data.copy()
-                data["__source__"] = dev_package.filepath
-                version = data.get("version", "_NO_VERSION")
+    def _load_re_evaluated_dev_package(self, pkg_path):
+        package = DeveloperPackage.from_path(pkg_path)
+        package.data["re_evaluated_variants"] = list()
 
-                yield version, data
+        for variant in package.iter_variants():
+            index = variant.index
 
-    def iter_dev_packages(self):
-        for family in iter_package_families(paths=[self._root]):
-            name = family.name  # package dir name
-            versions = dict()
+            re_evaluated_package = package.get_reevaluated({
+                "building": True,
+                "build_variant_index": index or 0,
+                "build_variant_requires": variant.variant_requires
+            })
+            re_evaluated_variant = re_evaluated_package.get_variant(index)
 
-            for version, data in self.generate_dev_packages(family):
-                versions[version] = data
+            package.data["re_evaluated_variants"].append(
+                re_evaluated_variant.resource
+            )
 
-            yield name, versions
-
-    def get_dev_package_versions(self, name):
-        it = iter_package_families(paths=[self._root])
-        family = next((f for f in it if f.name == name), None)
-        if family is None:
-            return
-
-        for version, data in self.generate_dev_packages(family):
-            yield version, data
-
-    def iter_package_names(self):
-        for family in iter_package_families(paths=[self._root]):
-            yield family.name  # package dir name
+        return package
 
 
 class DevRepoManager(object):
@@ -633,3 +620,15 @@ def clear_repo_cache(path):
     """
     fs_repo = package_repository_manager.get_repository(path)
     fs_repo.get_family.cache_clear()
+
+
+def expand_path(path):
+    path = functools.reduce(
+        lambda _p, f: f(_p),
+        [path,
+         os.path.expanduser,
+         os.path.expandvars,
+         os.path.normpath]
+    )
+
+    return path
