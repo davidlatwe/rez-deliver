@@ -1,27 +1,14 @@
 
 import os
-import sys
 import unittest
-from contextlib import contextmanager
 
-from rez.plugin_managers import plugin_manager, PackageRepositoryPluginType
 from rez.utils.sourcecode import _add_decorator, SourceCode, late
 from rez.package_repository import package_repository_manager
-from rez.package_maker import PackageMaker, package_schema
-from rez.package_resources import package_pod_schema
 from rez.config import config, _create_locked_config
+from rez.package_serialise import dump_package_data
 from rez.serialise import process_python_objects
-from rez.utils.formatting import PackageRequest
-from rez.vendor.schema.schema import Schema, Optional, Use, And, Or
+from rez.package_maker import PackageMaker
 from rez.serialise import FileFormat
-from rez.package_serialise import (
-    package_serialise_schema,
-    dump_package_data,
-)
-from rez.utils.request_directives import (
-    filter_directive_requires,
-    _validate_partial,
-)
 
 
 __all__ = [
@@ -94,87 +81,33 @@ class DeveloperPkgRepo(PkgRepo):
         super(DeveloperPkgRepo, self).__init__(path=path)
         self._out_early_enabled = False
 
-    @contextmanager
-    def enable_out_early(self):
-        schema_objects = [
-            package_schema,
-            package_pod_schema,
-            package_serialise_schema,
-        ]
-        originals = list()
-
-        for schema_obj in schema_objects:
-            originals.append(schema_obj._schema)
-            # make every attribute early-able
-            schema_obj._schema = {
-                k: Or(SourceCode, v)  # just like what `late_bound` does
-                for k, v in schema_obj._schema.items()
-            }
-
-        self._out_early_enabled = True
-
-        yield
-
-        for i, schema_obj in enumerate(schema_objects):
-            schema_obj._schema = originals[i]
-
-        # repository plugins must be resetted to reload schemas
-        _reset_package_repository_plugin()
-        self._out_early_enabled = False
-
     def add(self, name, **kwargs):
-        if self._out_early_enabled:
-            # process early bound functions
-            for key, value in kwargs.items():
-                if hasattr(value, "_early"):
-                    kwargs[key] = SourceCode(func=value,
-                                             eval_as_function=True)
+        data = kwargs
+        data["name"] = name
 
-        kwargs, directives = filter_directive_requires(kwargs)
-
-        maker = PackageMaker(name, data=kwargs)
-        package = maker.get_package()
-        data = package.data
-        version = data.get("version")
-
-        if version and isinstance(version, str):
-            pkg_base_path = os.path.join(self._path, name, version)
-        else:
-            # no version or early bounded
-            pkg_base_path = os.path.join(self._path, name)
-
+        # process early/late bound functions
+        #
+        for key, value in kwargs.items():
+            if hasattr(value, "_early"):
+                kwargs[key] = SourceCode(func=value, eval_as_function=True)
         process_python_objects(data)
 
-        self._restore_directives(data, directives)
+        # write out
+        #
+        pkg_base_path = os.path.join(self._path, name)
+        version = data.get("version")
+        if version and isinstance(version, str):
+            pkg_base_path = os.path.join(pkg_base_path, version)
 
         filepath = os.path.join(pkg_base_path, "package.py")
         os.makedirs(pkg_base_path, exist_ok=True)
         with open(filepath, "w") as f:
             dump_package_data(data, buf=f, format_=FileFormat.py)
 
-    def _restore_directives(self, data, directives):
-
-        def evaluate_directive(request):
-            request = PackageRequest(request)
-            directive = directives.get(request.name)
-            if directive:
-                # TODO: directive should be able to return original request str
-                request = directive.get_pre_build_request()
-                return str(request) + "//harden"
-            else:
-                return str(request)
-
-        evaluation_schema = And(str, Use(evaluate_directive))
-
-        requires_evaluation_schema = Schema({
-            Optional("requires"): [evaluation_schema],
-            Optional("build_requires"): [evaluation_schema],
-            Optional("private_build_requires"): [evaluation_schema],
-            Optional("variants"): [[evaluation_schema]],
-        })
-
-        validated = _validate_partial(requires_evaluation_schema, data)
-        data.update(validated)
+        # For debug
+        #
+        # with open(filepath, "r") as f:
+        #     print(f.read())
 
 
 def early():
@@ -184,14 +117,3 @@ def early():
         return fn
 
     return decorated
-
-
-def _reset_package_repository_plugin():
-    package_repository_manager.clear_caches()
-    package_repository_manager.pool.resource_classes.clear()
-
-    plugin_manager.register_plugin_type(PackageRepositoryPluginType)
-
-    for key in list(sys.modules.keys()):
-        if key.startswith("rezplugins.package_repository"):
-            del sys.modules[key]
