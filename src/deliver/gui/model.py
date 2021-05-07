@@ -1,7 +1,7 @@
 
 from .vendor.Qt5 import QtCore, QtGui
 from . import common
-from ..pkgs import PackageInstaller
+from ..api import PackageInstaller
 
 QtCheckState = QtCore.Qt.CheckState
 

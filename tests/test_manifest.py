@@ -4,7 +4,7 @@ import time
 import shutil
 import tempfile
 import unittest
-from deliver.pkgs import PackageLoader, PackageInstaller
+from deliver.api import PackageLoader, PackageInstaller
 from .util import TestBase
 from .ghostwriter import DeveloperRepository, early, late, building
 

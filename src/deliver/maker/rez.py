@@ -45,7 +45,7 @@ _regex_pypi_rez_ver = re.compile('.*<h1 class="package-header__name">'
 
 
 def find_python_package_versions(release):
-    from deliver.pkgs import PackageLoader
+    from deliver.api import PackageLoader
 
     python = "python"
     versions = set()

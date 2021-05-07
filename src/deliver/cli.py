@@ -1,10 +1,10 @@
 
-from deliver import pkgs
+from deliver import api
 
 
 def list_developer_packages(requests=None):
 
-    loader = pkgs.PackageLoader()
+    loader = api.PackageLoader()
 
     if not requests:
         # list all developer package family name
@@ -32,7 +32,7 @@ def list_developer_packages(requests=None):
 
 def deploy_packages(requests, path, dry_run=False, yes=False):
 
-    installer = pkgs.PackageInstaller()
+    installer = api.PackageInstaller()
     installer.target(path)
 
     installer.resolve(*requests)
@@ -54,7 +54,7 @@ def deploy_packages(requests, path, dry_run=False, yes=False):
     print("-" * 70)
     for i, requested in enumerate(manifest):
         template = " %%-%ds | %%s" % _max_name_len
-        status = "(%s)" % pkgs.PackageInstaller.StatusMapStr[requested.status]
+        status = "(%s)" % api.PackageInstaller.StatusMapStr[requested.status]
         line = template % (names[i], status)
         print(line)
 

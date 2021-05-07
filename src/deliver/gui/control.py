@@ -2,14 +2,14 @@
 from rez.config import config as rezconfig
 from .vendor.Qt5 import QtCore
 from . import model, util
-from .. import pkgs
+from .. import api
 
 
 class State(dict):
 
     def __init__(self, storage):
-        loader = pkgs.PackageLoader()
-        installer = pkgs.PackageInstaller(loader)
+        loader = api.PackageLoader()
+        installer = api.PackageInstaller(loader)
 
         super(State, self).__init__({
             "loader": loader,
