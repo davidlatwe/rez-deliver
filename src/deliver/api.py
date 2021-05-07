@@ -1,9 +1,6 @@
 
-from deliver.pkgs import (
-    PackageLoader,
-    PackageInstaller,
-    RequestSolver,
-)
+from deliver.repository import PackageLoader
+from deliver.solve import PackageInstaller, RequestSolver
 from deliver.exceptions import (
     RezDeliverError,
     RezDeliverRequestError,
