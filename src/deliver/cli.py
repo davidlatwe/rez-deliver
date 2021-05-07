@@ -1,5 +1,4 @@
 
-import re
 from deliver import pkgs
 
 
@@ -32,18 +31,11 @@ def list_developer_packages(requests=None):
 
 
 def deploy_packages(requests, path, dry_run=False, yes=False):
-    variant_index_regex = re.compile(r"(.+)\[([0-9]+)]")
 
     installer = pkgs.PackageInstaller()
     installer.target(path)
 
-    for req in requests:
-        result = variant_index_regex.split(req)
-        index = None
-        if not result[0]:
-            req, index = result[1:3]
-            index = int(index)
-        installer.resolve(req, variant_index=index)
+    installer.resolve(*requests)
 
     manifest = installer.manifest()
 

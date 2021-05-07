@@ -154,4 +154,4 @@ class Controller(QtCore.QObject):
         installer = self._state["installer"]
         installer.reset()
         for name, index in self._models["pkgBook"].iter_requests():
-            installer.resolve(name, index)
+            installer.resolve_one(name, variant_index=index)

@@ -9,6 +9,7 @@ Example:
 
 """
 import os
+import re
 import logging
 import functools
 import subprocess
@@ -28,6 +29,8 @@ from deliver.maker.os import pkg_os
 from deliver.maker.arch import pkg_arch
 from deliver.maker.platform import pkg_platform
 from deliver.maker.rez import pkg_rez
+
+from deliver.exceptions import RezDeliverRequestError
 
 
 # silencing rez logger, e.g. on package preprocessing
@@ -383,7 +386,7 @@ class PackageLoader(object):
         """Find requested latest package
 
         Args:
-            request (str): package request string
+            request (PackageRequest): package request object
             load_dependency (bool): If True, the dependency will be loaded
                 recursively before returning searched result.
 
@@ -391,7 +394,6 @@ class PackageLoader(object):
             `Package`: latest package in requested range, None if not found.
 
         """
-        request = PackageRequest(request)
         self.load(name=request.name, dependency=load_dependency)
         return get_latest_package(name=request.name,
                                   range_=request.range_,
@@ -440,6 +442,9 @@ class Required(object):
                   PackageInstaller.StatusMapStr[self.status])
 
 
+variant_index_regex = re.compile(r"(.+)\[([0-9]+)]")
+
+
 class RequestSolver(object):
 
     Ready = 1
@@ -459,7 +464,6 @@ class RequestSolver(object):
     def __init__(self, loader):
         self.loader = loader or PackageLoader()
         self._requirements = list()
-        self._implicits = list()  # TODO: Implement version picking
         self._conflicts = list()
         self.__depended = None
 
@@ -468,17 +472,149 @@ class RequestSolver(object):
         return rezconfig.packages_path
 
     def reset(self):
+        """Reset resolved manifest"""
         self._requirements = []
         self.__depended = None
 
+    def resolve(self, *requests):
+        """Resolve multiple requests and their dependencies recursively
+
+        Different from `resolve_one`, this method can take multiple requests,
+        and the request string can have variant index syntax, and conflict or
+        weak request, for example:
+
+            >>> solver = RequestSolver()
+            >>> solver.resolve("foo", "bar[0]", "egg-1.5[1]", "~ehh-0.5")
+
+        And, unlike `resolve_one` will continue adding resolved requires into
+        manifest list until `reset` is called, this method will reset the
+        manifest on each call.
+
+        Call `manifest()` to show resolved requirements.
+
+        Args:
+            *requests (str): Package request string, conflict or weak request
+                is also acceptable here.
+
+        Returns:
+            None
+
+        """
+        self.reset()
+        requests_ = []
+        conflicts = []
+
+        for request in requests:
+            # parse variant index
+            result = variant_index_regex.split(request)
+            index = None
+            if not result[0]:
+                request, index = result[1:3]
+                index = int(index)
+            # filtering requests
+            _request = PackageRequest(request)
+            if _request.conflict:
+                conflicts.append(request)
+            else:
+                requests_.append((_request, index))
+        # resolve
+        with self.conflicts(*conflicts):
+            for _request, index in requests_:
+                self._resolve_one(_request, variant_index=index)
+
+    def resolve_one(self, request, index=None):
+        """Resolve one request and it's dependencies recursively
+
+        Unlike `resolve`, this method can only accept one request, and cannot
+        take conflict or weak request. But will continue appending result to
+        manifest list until `reset` is called.
+
+        For adding conflict or weak request, use `conflicts` context method,
+        for example:
+            >>> solver = RequestSolver()
+            >>> with solver.conflicts("~ehh-0.5", "!bar"):
+            ...     solver.resolve_one("foo")
+            ...     solver.resolve_one("egg-1.5", index=1)
+
+        Call `manifest()` to show resolved requirements.
+
+        Args:
+            request (str): Package request string
+            index (int): Variant index, optional.
+
+        Returns:
+            None
+
+        """
+        _request = PackageRequest(request)
+        if _request.conflict:
+            raise RezDeliverRequestError(
+                "Should not pass conflict or weak requirement here, "
+                "use `with conflicts()` instead."
+            )
+        else:
+            self._resolve_one(_request, variant_index=index)
+
+    @contextlib.contextmanager
+    def conflicts(self, *requests):
+        """A context for adding conflict or weak requirements before resolve
+
+        The given conflict or weak requests will join each resolve in context,
+        and will be dropped on exit.
+
+        Args:
+            *requests (str): Package conflict or weak request string
+
+        Returns:
+            None
+
+        """
+        conflicts = []
+
+        for request in requests:
+            request = PackageRequest(request)
+            if not request.conflict:
+                raise RezDeliverRequestError(
+                    "Only conflict or weak requirement is acceptable here, "
+                    "use `resolve() or resolve_one()` for regular request."
+                )
+            else:
+                conflicts.append(request)
+
+        self._conflicts = conflicts
+        yield
+
+        self._conflicts = []
+
     def manifest(self):
+        """Return requested result
+
+        Returns:
+            list: A list of `Required` object
+
+        """
         return self._requirements[:]
 
-    def find_installed(self, name):
+    def _find_installed(self, request):
         paths = self.installed_packages_path
-        return get_latest_package_from_string(name, paths=paths)
+        return get_latest_package(name=request.name,
+                                  range_=request.range_,
+                                  paths=paths)
 
-    def zip_longest_variants(self, this, that):
+    def _zip_longest_variants(self, this, that):
+        """Iterate two packages variants via `variant_requires`
+
+        Like `itertools.zip_longest` that will zip multiple iterables, this
+        is iterating package variants and zip with `variant_requires` that
+        matched.
+
+        Args:
+            this: developer package, or None
+            that: installed package, or None
+
+        Yields: `Variant` or None, `Variant` or None
+
+        """
         r = (lambda requires: " ".join(str(_) for _ in requires))
 
         this_vans_ = list(this.iter_variants()) if this else []
@@ -505,13 +641,11 @@ class RequestSolver(object):
 
             yield this_van, that_van
 
-    def resolve(self, request, variant_index=None):
-        """Resolve request and it's dependencies recursively
-
-        Call `manifest()` to show resolved requirements.
+    def _resolve_one(self, request, variant_index=None):
+        """Resolve one request and it's dependencies recursively
 
         Args:
-            request (str): Package request string
+            request (PackageRequest): Package request object
             variant_index (int): Variant index, optional.
 
         Returns:
@@ -520,7 +654,7 @@ class RequestSolver(object):
         """
         # find latest package in requested range
         developer = self.loader.find(request, load_dependency=True)
-        installed = self.find_installed(request)
+        installed = self._find_installed(request)
 
         if developer is None and installed is None:
             # package not found
@@ -558,7 +692,7 @@ class RequestSolver(object):
         #   because installed package may have different variant sets than
         #   the developer one, even they are same version. Not likely, but
         #   could happen.
-        for d_van, i_van in self.zip_longest_variants(developer, installed):
+        for d_van, i_van in self._zip_longest_variants(developer, installed):
             variant = i_van or d_van
             if variant_index is not None and variant_index != variant.index:
                 continue
@@ -593,15 +727,16 @@ class RequestSolver(object):
                         request_id = (pkg.qualified_package_name, pkg.index)
                         if request_id in self._requirements:
                             continue
+                        _request = PackageRequest(pkg.qualified_package_name)
                         self.__depended = requested
-                        self.resolve(request=pkg.qualified_package_name,
-                                     variant_index=pkg.index)
+                        self._resolve_one(request=_request,
+                                          variant_index=pkg.index)
             self._append(requested)
         self.__depended = None  # reset
 
     def _build_context(self, variant_requires):
         paths = self.installed_packages_path + self.loader.paths
-        requests = variant_requires + self._implicits + self._conflicts
+        requests = variant_requires + self._conflicts
         return ResolvedContext(requests, building=True, package_paths=paths)
 
     def _append(self, requested):
