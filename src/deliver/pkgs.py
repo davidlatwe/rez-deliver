@@ -461,7 +461,7 @@ class RequestSolver(object):
         PackageNotFound: "missing",
     }
 
-    def __init__(self, loader):
+    def __init__(self, loader=None):
         self.loader = loader or PackageLoader()
         self._requirements = list()
         self._conflicts = list()
