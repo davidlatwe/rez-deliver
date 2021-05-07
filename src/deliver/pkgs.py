@@ -446,6 +446,7 @@ variant_index_regex = re.compile(r"(.+)\[([0-9]+)]")
 
 
 class RequestSolver(object):
+    """Package installation manifest resolver"""
 
     Ready = 1
     Installed = 2
@@ -745,6 +746,7 @@ class RequestSolver(object):
 
 
 class PackageInstaller(RequestSolver):
+    """Extended from `RequestSolver` to execute installation"""
 
     def __init__(self, loader=None):
         super(PackageInstaller, self).__init__(loader=loader)
