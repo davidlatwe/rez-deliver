@@ -4,12 +4,17 @@ import logging
 import subprocess
 
 from rez.config import config as rezconfig
-from rez.packages import iter_package_families
 from rez.utils.formatting import PackageRequest
+from rez.resolved_context import ResolvedContext
 from rez.developer_package import DeveloperPackage
 from rez.utils.logging_ import logger as rez_logger
 from rez.package_repository import package_repository_manager
-from rez.packages import get_latest_package_from_string, get_latest_package
+from rez.packages import (
+    iter_package_families,
+    iter_packages,
+    get_latest_package,
+    get_latest_package_from_string,
+)
 
 from deliver.lib import expand_path, override_config, temp_env, os_chdir
 from deliver.maker.os import pkg_os
@@ -99,19 +104,18 @@ class PackageLoader(object):
         if name and dependency:
             # lazy load, recursively
             requires = []
-            for repo in self._dev_repos:
-                versions = repo.mem_repo.data.get(name, dict())
-                for version, data in versions.items():
-                    # TODO: these won't work with @late:
-                    #   "TypeError: 'SourceCode' object is not iterable"
-                    requires += data.get("requires", [])
-                    requires += data.get("build_requires", [])
-                    requires += data.get("private_build_requires", [])
-                    for variant in data.get("variants", []):
-                        requires += variant
+            for package in self.iter_packages(name):
+                # package.set_context(ResolvedContext([]))
+                for variant in package.iter_variants():
+                    requires += variant.get_requires(
+                        build_requires=True,
+                        private_build_requires=True
+                    )
+
             seen = set()
-            for req_str in requires:
-                req = PackageRequest(req_str)
+            for req in requires:
+                if isinstance(req, str):
+                    req = PackageRequest(req)
                 if req.name not in seen and not req.ephemeral:
                     seen.add(req.name)
                     self.load(name=req.name)
@@ -136,6 +140,10 @@ class PackageLoader(object):
     def iter_package_families(self):
         for family in iter_package_families(paths=self.paths):
             yield family
+
+    def iter_packages(self, name, range_=None):
+        for package in iter_packages(name, range_=range_, paths=self.paths):
+            yield package
 
     def iter_package_family_names(self):
         seen = set()

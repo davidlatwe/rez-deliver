@@ -168,9 +168,10 @@ class TestManifest(TestBase):
             self.assertEqual(self.installer.Ready, req.status)
 
     def test_resolve_late_build_variants(self):
-
+        # in this test, `build_requires` is used because `requires` won't be
+        # visited by variant but package.
         @late()
-        def foo_requires():
+        def foo_build_requires():
             if this.is_variant:
                 if this.index == 0:  # x
                     return ["a"]
@@ -179,7 +180,9 @@ class TestManifest(TestBase):
             else:
                 return []
 
-        self.dev_repo.add("foo", requires=foo_requires, variants=[["x"], ["y"]])
+        self.dev_repo.add("foo",
+                          build_requires=foo_build_requires,
+                          variants=[["x"], ["y"]])
         self.dev_repo.add("x")
         self.dev_repo.add("y")
         self.dev_repo.add("a")
