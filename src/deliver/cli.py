@@ -8,7 +8,7 @@ def list_developer_packages(requests=None):
 
     if not requests:
         # list all developer package family name
-        names = sorted(loader.iter_package_names())
+        names = sorted(loader.iter_package_family_names())
         for n in names:
             print(n)
 

@@ -137,10 +137,10 @@ class PackageLoader(object):
         for family in iter_package_families(paths=self.paths):
             yield family
 
-    def iter_package_names(self):
+    def iter_package_family_names(self):
         seen = set()
         for repo in self._dev_repos:
-            for name in repo.iter_package_names():
+            for name in repo.iter_package_family_names():
                 if name not in seen:
                     yield name
                 seen.add(name)
@@ -221,7 +221,7 @@ class Repo(object):
     def get_dev_package_versions(self, name):
         raise NotImplementedError
 
-    def iter_package_names(self):
+    def iter_package_family_names(self):
         raise NotImplementedError
 
     def load(self, name=None):
@@ -289,7 +289,7 @@ class MakePkgRepo(Repo):
 
             yield version, data
 
-    def iter_package_names(self):
+    def iter_package_family_names(self):
         for name in self.makers:
             yield name
 
@@ -354,7 +354,7 @@ class DevPkgRepo(Repo):
         for version, data in self._generate_dev_packages(family):
             yield version, data
 
-    def iter_package_names(self):
+    def iter_package_family_names(self):
         for family in iter_package_families(paths=[self._root]):
             yield family.name  # package dir name
 
