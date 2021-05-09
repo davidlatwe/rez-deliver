@@ -102,6 +102,8 @@ class PackageLoader(object):
             for repo in self._dev_repos:
                 versions = repo.mem_repo.data.get(name, dict())
                 for version, data in versions.items():
+                    # TODO: these won't work with @late:
+                    #   "TypeError: 'SourceCode' object is not iterable"
                     requires += data.get("requires", [])
                     requires += data.get("build_requires", [])
                     requires += data.get("private_build_requires", [])
@@ -175,6 +177,8 @@ class Repo(object):
             `DeveloperPackage`: the input `package` itself
 
         """
+        # TODO: convert @early into @late for varianted attributes, and drop
+        #   'buildtime' repository
         resources = list()
 
         for variant in package.iter_variants():

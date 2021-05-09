@@ -137,6 +137,66 @@ class TestManifest(TestBase):
         for req in manifest:
             self.assertEqual(self.installer.Ready, req.status)
 
+    def test_resolve_early_build_variants(self):
+
+        @early()
+        def foo_requires():
+            if building:
+                if build_variant_index == 0:  # x
+                    return ["a"]
+                elif build_variant_index == 1:  # y
+                    return ["b"]
+            else:
+                return []
+
+        self.dev_repo.add("foo", requires=foo_requires, variants=[["x"], ["y"]])
+        self.dev_repo.add("x")
+        self.dev_repo.add("y")
+        self.dev_repo.add("a")
+        self.dev_repo.add("b")
+
+        self.installer.resolve("foo")
+        manifest = self.installer.manifest()
+
+        a = next((q for q in manifest if q.name == "a"), None)
+        self.assertIsNotNone(a)
+        b = next((q for q in manifest if q.name == "b"), None)
+        self.assertIsNotNone(b)
+
+        self.assertEqual(6, len(manifest))
+        for req in manifest:
+            self.assertEqual(self.installer.Ready, req.status)
+
+    def test_resolve_late_build_variants(self):
+
+        @late()
+        def foo_requires():
+            if this.is_variant:
+                if this.index == 0:  # x
+                    return ["a"]
+                elif this.index == 1:  # y
+                    return ["b"]
+            else:
+                return []
+
+        self.dev_repo.add("foo", requires=foo_requires, variants=[["x"], ["y"]])
+        self.dev_repo.add("x")
+        self.dev_repo.add("y")
+        self.dev_repo.add("a")
+        self.dev_repo.add("b")
+
+        self.installer.resolve("foo")
+        manifest = self.installer.manifest()
+
+        a = next((q for q in manifest if q.name == "a"), None)
+        self.assertIsNotNone(a)
+        b = next((q for q in manifest if q.name == "b"), None)
+        self.assertIsNotNone(b)
+
+        self.assertEqual(6, len(manifest))
+        for req in manifest:
+            self.assertEqual(self.installer.Ready, req.status)
+
     def test_resolve_with_installed(self):
         installed_repo = DeveloperRepository(self.install_path)
         installed_repo.add("bar")
