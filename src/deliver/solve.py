@@ -11,17 +11,24 @@ Example:
 import os
 import re
 import subprocess
+from functools import partial
 from contextlib import contextmanager
 
 from rez.config import config as rezconfig
-from rez.packages import get_latest_package
 from rez.utils.formatting import PackageRequest
 from rez.resolved_context import ResolvedContext
+from rez.developer_package import DeveloperPackage
+from rez.packages import Package, get_latest_package
 from rez.exceptions import PackageFamilyNotFoundError, PackageNotFoundError
 
 from deliver.repository import PackageLoader
-from deliver.exceptions import RezDeliverRequestError
-from deliver.lib import expand_path, clear_repo_cache
+from deliver.exceptions import RezDeliverRequestError, RezDeliverFatalError
+from deliver.lib import (
+    os_chdir,
+    expand_path,
+    override_config,
+    clear_repo_cache,
+)
 
 
 class Required(object):
@@ -321,6 +328,24 @@ class RequestSolver(object):
                 requested.depended.append(self.__depended)
 
             # resolve variant's requirement
+            #
+            if status == self.Ready:
+                # re-evaluate
+                if developer is None or variant is i_van:
+                    raise RezDeliverFatalError(
+                        "Fatal Error: Request status is 'Ready' but developer "
+                        "package is not used, this is a bug."
+                    )
+                if source != self.loader.maker_root:
+                    variant = self._re_evaluate_variant(variant) or variant
+                else:
+                    # no need to re-evaluate maker package in build.
+                    pass
+            else:
+                # resolving requirements for installed variant which is not
+                #   from a developer package, so cannot be re-evaluated.
+                pass
+
             variant_requires = variant.get_requires(
                 build_requires=True,
                 private_build_requires=True
@@ -350,7 +375,61 @@ class RequestSolver(object):
     def _build_context(self, variant_requires):
         paths = self.installed_packages_path + self.loader.paths
         requests = variant_requires + self._conflicts
-        return ResolvedContext(requests, building=True, package_paths=paths)
+
+        return ResolvedContext(
+            requests,
+            building=True,
+            package_paths=paths,
+            package_load_callback=self._re_evaluate_variant_callback
+        )
+
+    def _re_evaluate_variant_callback(self, package):
+        """Package load callback in context resolving time
+
+        When resolving context for building package which may have dependency
+        that is another developer package which must be re-evaluated as in
+        build so to get the correct build-requires.
+
+        """
+        def iter_variants(_self):
+            for variant in Package.iter_variants(_self):
+                yield (
+                    self._re_evaluate_variant(variant, context=_self.context)
+                    or variant
+                )
+        # patch
+        package.iter_variants = partial(iter_variants, package)
+
+    def _re_evaluate_variant(self, variant, context=None):
+        """Re-evaluate package variant as in build-time
+        """
+        filepath = variant.parent.data.get("__source__")
+        if not filepath or not os.path.isfile(filepath):
+            return
+
+        package = DeveloperPackage(variant.parent.resource)
+        package.filepath = filepath
+
+        pkg_path = os.path.dirname(filepath)
+        with override_config(self.loader.settings), os_chdir(pkg_path):
+            re_evaluated_package = package.get_reevaluated({
+                "building": True,
+                "build_variant_index": variant.index or 0,
+                "build_variant_requires": variant.variant_requires
+            })
+
+        re_evaluated_package.set_context(context)
+        re_evaluated_variant = re_evaluated_package.get_variant(variant.index)
+
+        # Ensure all requires are loaded after re-evaluated
+        for request in re_evaluated_variant.get_requires(
+            build_requires=True, private_build_requires=True
+        ):
+            if isinstance(request, PackageRequest):
+                request = request.name
+            self.loader.load(request, dependency=True)
+
+        return re_evaluated_variant
 
     def _append(self, requested):
         if requested not in self._requirements:

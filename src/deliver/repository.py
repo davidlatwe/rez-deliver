@@ -5,7 +5,6 @@ import subprocess
 
 from rez.config import config as rezconfig
 from rez.utils.formatting import PackageRequest
-from rez.resolved_context import ResolvedContext
 from rez.developer_package import DeveloperPackage
 from rez.utils.logging_ import logger as rez_logger
 from rez.package_repository import package_repository_manager
@@ -59,6 +58,25 @@ class PackageLoader(object):
         self._maker_repo = maker_repo
 
     @property
+    def settings(self):
+        dev_paths = [repo.root for repo in self._dev_repos[:-1]]
+        dev_paths.append(self._maker_repo.mem_uid)
+        # Noted that the maker repo doesn't have filesystem based package,
+        #   use memory path `mem_uid` as root instead.
+
+        return {
+            # Append `dev_paths` into `config.packages_path` so the requires
+            # can be expanded properly with other pre-installed packages.
+            # If we don't do this, requirements like "os-*" or "python-2.*"
+            # may raise error like schema validation fail (which is also
+            # confusing) due to package not found.
+            "packages_path": rezconfig.packages_path[:] + dev_paths,
+            # Ensure unversioned package is allowed, so we can iter dev
+            # packages.
+            "allow_unversioned_packages": True,
+        }
+
+    @property
     def maker_root(self):
         return self._maker_repo.root
 
@@ -82,22 +100,7 @@ class PackageLoader(object):
             None
 
         """
-        dev_paths = [repo.root for repo in self._dev_repos[:-1]]
-        dev_paths.append(self._maker_repo.mem_uid)
-        # Noted that the maker repo doesn't have filesystem based package,
-        #   use memory path `mem_uid` as root instead.
-
-        with override_config({
-            # Append `dev_paths` into `config.packages_path` so the requires
-            # can be expanded properly with other pre-installed packages.
-            # If we don't do this, requirements like "os-*" or "python-2.*"
-            # may raise error like schema validation fail (which is also
-            # confusing) due to package not found.
-            "packages_path": rezconfig.packages_path[:] + dev_paths,
-            # Ensure unversioned package is allowed, so we can iter dev
-            # packages.
-            "allow_unversioned_packages": True,
-        }):
+        with override_config(self.settings):
             for repo in self._dev_repos:
                 repo.load(name=name)
 
@@ -105,7 +108,6 @@ class PackageLoader(object):
             # lazy load, recursively
             requires = []
             for package in self.iter_packages(name):
-                # package.set_context(ResolvedContext([]))
                 for variant in package.iter_variants():
                     requires += variant.get_requires(
                         build_requires=True,
@@ -172,48 +174,9 @@ class Repo(object):
         uid = "@".join(pkg.parent.repository.uid[:2])
         return uid == self.mem_uid
 
-    def _load_build_time_variants(self, package):
-        """Re-evaluate package variants as build-time mode
-
-        Package should be re-evaluated for each variant as in build so to
-        get the correct variant build-requires.
-
-        Args:
-            package (`DeveloperPackage`): an instance of DeveloperPackage
-
-        Returns:
-            `DeveloperPackage`: the input `package` itself
-
-        """
-        # TODO: convert @early into @late for varianted attributes, and drop
-        #   'buildtime' repository
-        resources = list()
-
-        for variant in package.iter_variants():
-            index = variant.index
-
-            re_evaluated_package = package.get_reevaluated({
-                "building": True,
-                "build_variant_index": index or 0,
-                "build_variant_requires": variant.variant_requires
-            })
-            re_evaluated_variant = re_evaluated_package.get_variant(index)
-            # noted that here is the resource object being collected
-            resources.append(re_evaluated_variant.resource)
-
-        if resources:
-            # Here we preserve each re-evaluated variant's resource object,
-            # see `deliver.rezplugins.package_repository.buildtime` for how
-            # they will be retrieved.
-            package.data["_build_time_variant_resources"] = resources
-
-        return package
-
     @property
     def mem_uid(self):
-        # noted that here we use the `buildtime` memory repository plugin
-        # to preserve loaded developer packages.
-        return "buildtime@" + self._root
+        return "memory@" + self._root
 
     @property
     def mem_repo(self):
@@ -403,7 +366,7 @@ class DevPkgRepo(Repo):
                     # generate versions from git tags
                     with temp_env("REZ_DELIVER_PKG_PAYLOAD_VER", ver_tag):
                         package = DeveloperPackage.from_path(pkg_path)
-                        yield self._load_build_time_variants(package)
+                        yield package
             else:
                 package = DeveloperPackage.from_path(pkg_path)
-                yield self._load_build_time_variants(package)
+                yield package

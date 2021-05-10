@@ -5,3 +5,7 @@ class RezDeliverError(Exception):
 
 class RezDeliverRequestError(RezDeliverError):
     pass
+
+
+class RezDeliverFatalError(RezDeliverError):
+    pass
