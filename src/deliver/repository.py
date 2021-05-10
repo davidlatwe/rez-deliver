@@ -335,19 +335,29 @@ class DevPkgRepo(Repo):
                 return
 
             filepath = package.uri
-            git_url = package.data.get("git_url")
-            tags = self._git_tags(git_url) if git_url else ["__no_remote__"]
+            dirpath = os.path.dirname(filepath)
+            with os_chdir(dirpath):
+                # If we don't change cwd to package dir, dev package may
+                # not be evaluated correctly.
+                # For example, `git shortlog` is often being used to get
+                # package authors, which will not work and hang the process
+                # with message "reading log message from standard input", if
+                # cwd is not (in) a git repository.
 
-            for ver_tag in tags:
-                # generate versions from git tags
-                with temp_env("REZ_DELIVER_PKG_PAYLOAD_VER", ver_tag):
-                    developer = self._load_dev_packages(filepath)
+                git_url = package.data.get("git_url")
+                tags = (
+                    self._git_tags(git_url) if git_url else ["__no_remote__"]
+                )
+                for ver_tag in tags:
+                    # generate versions from git tags
+                    with temp_env("REZ_DELIVER_PKG_PAYLOAD_VER", ver_tag):
+                        developer = DeveloperPackage.from_path(dirpath)
 
-                    data = developer.data.copy()
-                    data["__source__"] = developer.filepath
-                    version = data.get("version", "_NO_VERSION")
+                        data = developer.data.copy()
+                        data["__source__"] = developer.filepath
+                        version = data.get("version", "_NO_VERSION")
 
-                    yield version, data
+                        yield version, data
 
     def _git_tags(self, url):
         args = ["git", "ls-remote", "--tags", url]
@@ -358,14 +368,3 @@ class DevPkgRepo(Repo):
         else:
             for line in output.splitlines():
                 yield line.split("refs/tags/")[-1]
-
-    def _load_dev_packages(self, filepath):
-        dirpath = os.path.dirname(filepath)
-        with os_chdir(dirpath):
-            # If we don't change cwd to package dir, dev package may not be
-            # evaluated correctly.
-            # For example, `git shortlog` is often being used to get package
-            # authors, which will not work and hang the process with message
-            # "reading log message from standard input", if cwd is not (in)
-            # a git repository.
-            return DeveloperPackage.from_path(dirpath)
