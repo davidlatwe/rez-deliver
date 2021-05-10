@@ -3,10 +3,22 @@ Rez developer package delivering tool
 """
 import sys
 import argparse
-from rez.command import Command
+try:
+    from rez.command import Command
+except ImportError:
+    Command = object
 
 
 command_behavior = {}
+
+
+def rez_cli():
+    from rez.cli._main import run
+    try:
+        return run("deliver")
+    except KeyError:
+        # for rez version that doesn't have Command type plugin
+        standalone_cli()
 
 
 def standalone_cli():
