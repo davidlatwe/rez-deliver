@@ -12,24 +12,42 @@ Simply put, this project is a implementation of [REP-002](https://github.com/ner
 
 * Python 3.4+
 * Rez
-
-Currently this is still in development, and require un-merged PRs in [nerdvegas/rez](https://github.com/nerdvegas/rez):
-
-* [nerdvegas/rez#1040](https://github.com/nerdvegas/rez/pull/1040) for command plugin interface.
-* [nerdvegas/rez#1060](https://github.com/nerdvegas/rez/pull/1060) for testing directive request (Not a must).
-
+* Python Qt5 binding for GUI mode
 
 ### Installation
 
-With [nerdvegas/rez#1040](https://github.com/nerdvegas/rez/pull/1040), install with rez venv's pip should work.
+Best to install with [rezup](https://github.com/davidlatwe/rezup), it will take care Rez production standard entrypoints:
 
-```shell
-$ git clone https://github.com/davidlatwe/rez-deliver.git
-$ cd /path/to/rez-deliver
-$ rez-python -m pip install .
+1. Saving these into `~/rezup.toml`
+    
+    ```toml
+    description = "rezup container revision recipe"
+    
+    [rez]
+    url = "rez"
+    
+    [[extension]]
+    name = "rez-deliver"
+    url = "git+git://github.com/davidlatwe/rez-deliver[gui]"
+    ```
+
+2. In terminal
+
+    ```shell
+    $ pip install rezup
+    $ rezup use --make
+    $ rez-deliver -h
+    ```
+
+Now, if you DO NOT have [nerdvegas/rez#1040](https://github.com/nerdvegas/rez/pull/1040) merged, one extra step is :
+
+```python
+# rezconfig.py
+plugin_path = ModifyList(append=[
+    # The path *above* rezplugins/ directory
+    "/path/to/rez-deliver/src/deliver",
+])
 ```
-
-`PySide2` or `PyQt5` is required for GUI mode.
 
 
 ### Usage
