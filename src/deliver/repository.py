@@ -331,12 +331,23 @@ class DevPkgRepo(Repo):
 
     def _generate_dev_packages(self, family):
         for package in family.iter_packages():
-            for dev_package in self._load_dev_packages(package):
-                data = dev_package.data.copy()
-                data["__source__"] = dev_package.filepath
-                version = data.get("version", "_NO_VERSION")
+            if not package.uri:  # A sub-dir in Family dir without package file
+                return
 
-                yield version, data
+            filepath = package.uri
+            git_url = package.data.get("git_url")
+            tags = self._git_tags(git_url) if git_url else ["__no_remote__"]
+
+            for ver_tag in tags:
+                # generate versions from git tags
+                with temp_env("REZ_DELIVER_PKG_PAYLOAD_VER", ver_tag):
+                    developer = self._load_dev_packages(filepath)
+
+                    data = developer.data.copy()
+                    data["__source__"] = developer.filepath
+                    version = data.get("version", "_NO_VERSION")
+
+                    yield version, data
 
     def _git_tags(self, url):
         args = ["git", "ls-remote", "--tags", url]
@@ -348,25 +359,13 @@ class DevPkgRepo(Repo):
             for line in output.splitlines():
                 yield line.split("refs/tags/")[-1]
 
-    def _load_dev_packages(self, package):
-        if not package.uri:  # A sub-dir in Family dir without package file.
-            return
-
-        pkg_path = os.path.dirname(package.uri)
-        with os_chdir(pkg_path):
+    def _load_dev_packages(self, filepath):
+        dirpath = os.path.dirname(filepath)
+        with os_chdir(dirpath):
             # If we don't change cwd to package dir, dev package may not be
             # evaluated correctly.
             # For example, `git shortlog` is often being used to get package
             # authors, which will not work and hang the process with message
             # "reading log message from standard input", if cwd is not (in)
             # a git repository.
-            git_url = package.data.get("git_url")
-            if git_url:
-                for ver_tag in self._git_tags(git_url):
-                    # generate versions from git tags
-                    with temp_env("REZ_DELIVER_PKG_PAYLOAD_VER", ver_tag):
-                        package = DeveloperPackage.from_path(pkg_path)
-                        yield package
-            else:
-                package = DeveloperPackage.from_path(pkg_path)
-                yield package
+            return DeveloperPackage.from_path(dirpath)
