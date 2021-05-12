@@ -18,7 +18,7 @@ def rez_cli():
         return run("deliver")
     except KeyError:
         # for rez version that doesn't have Command type plugin
-        standalone_cli()
+        return standalone_cli()
 
 
 def standalone_cli():
