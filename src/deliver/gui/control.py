@@ -1,4 +1,5 @@
 
+from rez.utils.formatting import PackageRequest
 from rez.config import config as rezconfig
 from .vendor.Qt5 import QtCore
 from . import model, util
@@ -148,10 +149,10 @@ class Controller(QtCore.QObject):
 
     def find_dev_package(self, name):
         loader = self._state["loader"]
-        return loader.find(name)
+        return loader.find(PackageRequest(name))
 
     def resolve_requests(self):
         installer = self._state["installer"]
         installer.reset()
         for name, index in self._models["pkgBook"].iter_requests():
-            installer.resolve_one(name, variant_index=index)
+            installer.resolve_one(name, index=index)
