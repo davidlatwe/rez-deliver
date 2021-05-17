@@ -263,6 +263,31 @@ class TestManifest(TestBase):
         with self.dump_config_yaml(self.root):
             self.installer.run()
 
+    def test_minimum_require(self):
+        self.dev_repo.add("a", build_command=False)
+        self.dev_repo.add("b", build_command=False)
+        self.dev_repo.add("foo", variants=[["a"], ["b"]], build_command=False)
+        self.dev_repo.add("bar", requires=["foo"], build_command=False)
+
+        self.installer.resolve("bar")
+        manifest = self.installer.manifest()
+        self.assertEqual(3, len(manifest))
+        self.assertEqual(["b", "foo", "bar"], [r.name for r in manifest])
+
+        self.installer.resolve("foo[1]")
+        with self.dump_config_yaml(self.root):
+            self.installer.run()
+
+        self.installer.resolve("bar")
+        manifest = self.installer.manifest()
+
+        self.assertEqual(3, len(manifest))
+        self.assertEqual(["b", "foo", "bar"], [r.name for r in manifest])
+
+        self.assertEqual(self.installer.Installed, manifest[0].status)
+        self.assertEqual(self.installer.Installed, manifest[1].status)
+        self.assertEqual(self.installer.Ready, manifest[2].status)
+
 
 if __name__ == "__main__":
     unittest.main()
