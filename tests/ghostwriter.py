@@ -1,18 +1,24 @@
 
 import os
 
-from rez.utils.sourcecode import _add_decorator, SourceCode, late
-from rez.package_serialise import dump_package_data
-from rez.serialise import process_python_objects
-from rez.serialise import FileFormat
+from rez.utils.sourcecode import _add_decorator, SourceCode, late, include
+from rez.serialise import process_python_objects, FileFormat
+from rez.vendor.schema.schema import Schema, Optional, Or
+from rez.package_serialise import (
+    package_serialise_schema,
+    package_request_schema,
+    package_key_order,
+    dump_functions,
+)
 
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "DeveloperRepository",
     "early",
     "late",
+    "include",
     "building",
 ]
 
@@ -32,18 +38,24 @@ class DeveloperRepository(object):
             ... def requires():
             ...     return [] if building else ["!bar"]
             ...
+            >>> @early()
+            ... def variants():
+            ...     return [["fun", "os-*"]]
+            ...
             >>> @late()
             ... def bar():
             ...     return "cheers"
             ...
-            >>> def commands():
+            >>> @include("util")
+            ... def commands():
             ...     env.PATH.append("{this.root}/bin")
             ...     env.BAR = this.bar
+            ...     util.do("stuff")
             ...
             >>> dev_repo.add("foo",
             ...              version="1",
             ...              requires=requires,
-            ...              variants=[["os-*"]],
+            ...              variants=variants,
             ...              bar=bar,
             ...              build_command=False,
             ...              commands=commands)
@@ -57,11 +69,15 @@ class DeveloperRepository(object):
             def requires():
                 return [] if building else ["!bar"]
             <BLANKLINE>
-            variants = [['os-*']]
+            @early()
+            def variants():
+                return [["fun", "os-*"]]
             <BLANKLINE>
+            @include('util')
             def commands():
                 env.PATH.append("{this.root}/bin")
                 env.BAR = this.bar
+                util.do("stuff")
             <BLANKLINE>
             @late()
             def bar():
@@ -116,7 +132,7 @@ class DeveloperRepository(object):
         filepath = os.path.join(pkg_base_path, "package.py")
         os.makedirs(pkg_base_path, exist_ok=True)
         with open(filepath, "w") as f:
-            dump_package_data(data, buf=f, format_=FileFormat.py)
+            dump_developer_package_data(data, buf=f, format_=FileFormat.py)
 
         # For debug
         #
@@ -139,6 +155,55 @@ def early():
 # Lint helper
 
 building = None
+
+
+# Vendor
+
+def dump_developer_package_data(data,
+                                buf,
+                                format_=FileFormat.py,
+                                skip_attributes=None):
+    """Write developer package data to `buf`.
+
+    Modified from rez for supporting dump early bound `variants`.
+
+    Args:
+        data (dict): Data source - must conform to `package_serialise_schema`.
+        buf (file-like object): Destination stream.
+        format_ (`FileFormat`): Format to dump data in.
+        skip_attributes (list of str): List of attributes to not print.
+    """
+    if format_ == FileFormat.txt:
+        raise ValueError("'txt' format not supported for packages.")
+
+    data_ = dict((k, v) for k, v in data.items() if v is not None)
+    data_ = developer_serialise_schema.validate(data_)  # variant can be early
+    skip = set(skip_attributes or [])
+
+    items = []
+    for key in package_key_order:
+        if key not in skip:
+            value = data_.pop(key, None)
+            if value is not None:
+                items.append((key, value))
+
+    # remaining are arbitrary keys
+    for key, value in data_.items():
+        if key not in skip:
+            items.append((key, value))
+
+    dump_func = dump_functions[format_]
+    dump_func(items, buf)
+
+
+def early_bound(schema):
+    return Or(SourceCode, schema)
+
+
+_schema_dict = package_serialise_schema._schema.copy()
+_schema_dict[Optional("variants")] = early_bound([[package_request_schema]])
+
+developer_serialise_schema = Schema(_schema_dict)
 
 
 # MIT License
