@@ -314,11 +314,11 @@ class RequestSolver(object):
         #   the developer one, even they are same version. Not likely, but
         #   could happen.
         for d_van, i_van in self._zip_longest_variants(developer, installed):
-            variant = i_van or d_van
+            variant = d_van or i_van
             if variant_index is not None and variant_index != variant.index:
                 continue
 
-            if status == self.Ready and variant is i_van:
+            if status == self.Ready and i_van is not None:
                 status = self.Installed
 
             requested = Required.get(name, variant.index)
@@ -374,7 +374,7 @@ class RequestSolver(object):
         self.__depended = None  # reset
 
     def _build_context(self, variant_requires):
-        paths = self.installed_packages_path + self.loader.paths
+        paths = self.loader.paths + self.installed_packages_path
         requests = variant_requires + self._conflicts
 
         return ResolvedContext(

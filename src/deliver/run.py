@@ -17,8 +17,8 @@ def main():
     solver.resolve(opts.PKG)
 
     settings = {
-        "packages_path": (solver.installed_packages_path
-                          + solver.loader.paths),
+        "packages_path": (solver.loader.paths
+                          + solver.installed_packages_path),
     }
     with override_config(settings):
         command = "release" if opts.release else "build"
