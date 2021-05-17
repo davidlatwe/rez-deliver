@@ -240,6 +240,29 @@ class TestManifest(TestBase):
         manifest = self.installer.manifest()
         self.assertEqual(manifest[0].status, self.installer.ResolveFailed)
 
+    def test_buildtime_variants(self):
+        @early()
+        def variants():
+            bindings = ["pyqt", "pyside"]
+            if building:
+                return [[binding] for binding in bindings]
+            else:
+                from rez import packages
+                return [[binding] for binding in bindings
+                        if packages.get_latest_package_from_string(binding)]
+
+        self.dev_repo.add("shim", build_command=False, variants=variants)
+        self.dev_repo.add("pyqt", build_command=False)
+        self.dev_repo.add("pyside", build_command=False)
+
+        self.installer.resolve("shim[1]")
+        manifest = self.installer.manifest()
+        self.assertEqual(manifest[0].name, "pyside")
+        self.assertEqual(manifest[1].index, 1)
+
+        with self.dump_config_yaml(self.root):
+            self.installer.run()
+
 
 if __name__ == "__main__":
     unittest.main()

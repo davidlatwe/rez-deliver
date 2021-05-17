@@ -1,5 +1,9 @@
 
+import os
 import unittest
+from contextlib import contextmanager
+from deliver.lib import temp_env
+from rez.utils.yaml import save_yaml
 from rez.config import config, _create_locked_config
 
 
@@ -28,3 +32,16 @@ class TestBase(unittest.TestCase):
         # update_settings is still valid
         config._swap(self._config)
         self._config = None
+
+    @contextmanager
+    def dump_config_yaml(self, dirpath):
+        """Context that saves current testing config for e.g. subprocess"""
+        filepath = os.path.join(dirpath, "rezconfig")
+
+        data = config.validated_data()
+        save_yaml(filepath, **data)
+
+        with temp_env("REZ_CONFIG_FILE", filepath):
+            yield
+
+        os.remove(filepath)
