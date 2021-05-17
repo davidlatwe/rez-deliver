@@ -479,7 +479,7 @@ class PackageInstaller(RequestSolver):
                 self._make(requested.name,
                            variant=requested.index)
             else:
-                self._build(os.path.dirname(requested.name),
+                self._build(os.path.dirname(requested.source),
                             variant=requested.index)
 
             yield requested
