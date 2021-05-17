@@ -10,6 +10,7 @@ Example:
 """
 import os
 import re
+import sys
 import subprocess
 from functools import partial
 from contextlib import contextmanager
@@ -479,7 +480,8 @@ class PackageInstaller(RequestSolver):
                 self._make(requested.name,
                            variant=requested.index)
             else:
-                self._build(os.path.dirname(requested.source),
+                self._build(requested.name,
+                            os.path.dirname(requested.source),
                             variant=requested.index)
 
             yield requested
@@ -494,7 +496,7 @@ class PackageInstaller(RequestSolver):
 
         clear_repo_cache(deploy_path)
 
-    def _build(self, src_dir, variant=None):
+    def _build(self, name, src_dir, variant=None):
         variant_cmd = [] if variant is None else ["--variants", str(variant)]
         deploy_path = self.deploy_path
         env = os.environ.copy()
@@ -502,14 +504,20 @@ class PackageInstaller(RequestSolver):
         if not os.path.isdir(deploy_path):
             os.makedirs(deploy_path)
 
+        if variant is not None:
+            name += "[%d]" % variant
+
+        cmd = [sys.executable, "-m", "deliver.run", name]
+
         if self.release:
             env["REZ_RELEASE_PACKAGES_PATH"] = deploy_path
-            args = ["rez-release"] + variant_cmd
-            self._run_command(args, cwd=src_dir, env=env)
+            cmd += ["--release"]
         else:
             env["REZ_LOCAL_PACKAGES_PATH"] = deploy_path
-            args = ["rez-build", "--install"] + variant_cmd
-            self._run_command(args, cwd=src_dir)
+            cmd += ["--install"]
+
+        cmd += variant_cmd
+        self._run_command(cmd, cwd=src_dir, env=env)
 
         clear_repo_cache(deploy_path)
 
