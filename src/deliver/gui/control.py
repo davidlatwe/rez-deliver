@@ -115,7 +115,7 @@ class Controller(QtCore.QObject):
             installer = self._state["installer"]
             for requested in installer.run_iter():
                 self._models["pkgManifest"].installed(requested)
-
+        # TODO: no track back on error
         util.defer(install)
 
     def iter_dev_packages(self):
