@@ -5,8 +5,8 @@ import shutil
 import tempfile
 import unittest
 from deliver.api import PackageLoader, PackageInstaller
-from .util import TestBase
-from .ghostwriter import DeveloperRepository, early, late, building
+from tests.util import TestBase, require_directives
+from tests.ghostwriter import DeveloperRepository, early, late, building
 
 
 class TestManifest(TestBase):
@@ -88,6 +88,7 @@ class TestManifest(TestBase):
         self.assertTrue(manifest[0].name == "bar-2.0")
         self.assertEqual(("foo-1", 0), (manifest[1].name, manifest[1].index))
 
+    @require_directives()
     def test_resolve_with_req_directive(self):
         # need to install bar first so the request can be expanded.
         installed_repo = DeveloperRepository(self.install_path)
@@ -101,6 +102,7 @@ class TestManifest(TestBase):
         self.assertTrue(manifest[0].name == "bar-1.5")
         self.assertEqual(("foo-1", 0), (manifest[1].name, manifest[1].index))
 
+    @require_directives()
     def test_resolve_with_req_directive_but_no_pre_installed(self):
         self.dev_repo.add("bar", version="1.5")
         self.dev_repo.add("bar", version="2.0")

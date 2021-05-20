@@ -1,6 +1,7 @@
 
 import os
 import unittest
+import functools
 from contextlib import contextmanager
 from deliver.lib import temp_env
 from rez.utils.yaml import save_yaml
@@ -45,3 +46,30 @@ class TestBase(unittest.TestCase):
             yield
 
         os.remove(filepath)
+
+
+try:
+    from rez.utils import request_directives
+except ImportError:
+    __has_directives = False
+else:
+    __has_directives = True
+
+
+def require_directives():
+    """Decorator that skip test if rez doesn't have directives implemented"""
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(self, *args, **kwargs):
+            if __has_directives:
+                return func(self, *args, **kwargs)
+            else:
+                self.skipTest(
+                    "Cannot test on rez that doesn't have REP-002 directives "
+                    "implemented, skipping.."
+                )
+
+        return wrapper
+
+    return decorator
