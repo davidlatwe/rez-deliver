@@ -499,7 +499,6 @@ class PackageInstaller(RequestSolver):
     def _build(self, name, src_dir, variant=None):
         variant_cmd = [] if variant is None else ["--variants", str(variant)]
         deploy_path = self.deploy_path
-        env = os.environ.copy()
 
         if not os.path.isdir(deploy_path):
             os.makedirs(deploy_path)
@@ -507,6 +506,7 @@ class PackageInstaller(RequestSolver):
         if variant is not None:
             name += "[%d]" % variant
 
+        env = os.environ.copy()
         cmd = [sys.executable, "-m", "deliver.run", name]
 
         if self.release:
