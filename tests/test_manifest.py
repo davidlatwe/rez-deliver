@@ -5,6 +5,7 @@ import shutil
 import tempfile
 import unittest
 from deliver.api import PackageLoader, PackageInstaller
+from deliver.lib import temp_env
 from tests.util import TestBase, require_directives
 from tests.ghostwriter import DeveloperRepository, early, late, building
 
@@ -49,7 +50,16 @@ class TestManifest(TestBase):
                         time.sleep(0.2)
 
     def _run_install(self):
-        with self.dump_config_yaml(self.root):
+        # ensure module `deliver.run` can be accessed in subprocess.
+        #
+        import deliver
+        PYTHONPATH = os.pathsep.join([
+            os.path.dirname(deliver.__path__[0]),
+            os.getenv("PYTHONPATH") or ""
+        ])
+
+        with temp_env("PYTHONPATH", PYTHONPATH), \
+                self.dump_config_yaml(self.root):
             self.installer.run()
 
     def test_resolve_1(self):
