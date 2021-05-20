@@ -48,6 +48,10 @@ class TestManifest(TestBase):
                     if i < (retries - 1):
                         time.sleep(0.2)
 
+    def _run_install(self):
+        with self.dump_config_yaml(self.root):
+            self.installer.run()
+
     def test_resolve_1(self):
         self.dev_repo.add("foo", version="1")
         self.dev_repo.add("bar", version="1", requires=["foo"])
@@ -260,8 +264,7 @@ class TestManifest(TestBase):
         self.assertEqual(manifest[0].name, "pyside")
         self.assertEqual(manifest[1].index, 1)
 
-        with self.dump_config_yaml(self.root):
-            self.installer.run()
+        self._run_install()
 
     def test_minimum_require(self):
         self.dev_repo.add("a", build_command=False)
@@ -275,8 +278,7 @@ class TestManifest(TestBase):
         self.assertEqual(["b", "foo", "bar"], [r.name for r in manifest])
 
         self.installer.resolve("foo[1]")
-        with self.dump_config_yaml(self.root):
-            self.installer.run()
+        self._run_install()
 
         self.installer.resolve("bar")
         manifest = self.installer.manifest()
