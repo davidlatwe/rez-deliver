@@ -65,6 +65,17 @@ class Required(object):
 variant_index_regex = re.compile(r"(.+)\[([0-9]+)]")
 
 
+def split_variant_request(request):
+    """Parse request string and split up variant index"""
+    result = variant_index_regex.split(request)
+    index = None
+    if not result[0]:
+        request, index = result[1:3]
+        index = int(index)
+
+    return PackageRequest(request), index
+
+
 class RequestSolver(object):
     """Package installation manifest resolver"""
 
@@ -127,13 +138,8 @@ class RequestSolver(object):
 
         for request in requests:
             # parse variant index
-            result = variant_index_regex.split(request)
-            index = None
-            if not result[0]:
-                request, index = result[1:3]
-                index = int(index)
+            _request, index = split_variant_request(request)
             # filtering requests
-            _request = PackageRequest(request)
             if _request.conflict:
                 conflicts.append(request)
             else:
