@@ -330,9 +330,9 @@ class DevPkgRepo(Repo):
             yield family.name  # package dir name
 
     def _generate_dev_packages(self, family):
-        for package in family.iter_packages():
+        for package in family.iter_packages():  # package order is random
             if not package.uri:  # A sub-dir in Family dir without package file
-                return
+                continue
 
             filepath = package.uri
             dirpath = os.path.dirname(filepath)
