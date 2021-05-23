@@ -62,6 +62,11 @@ class Required(object):
                   PackageInstaller.StatusMapStr[self.status])
 
 
+def join_variant_request(request, variant_index):
+    index = "" if variant_index is None else ("[%d]" % variant_index)
+    return str(request) + index
+
+
 variant_index_regex = re.compile(r"(.+)\[([0-9]+)]")
 
 
@@ -360,11 +365,15 @@ class RequestSolver(object):
             try:
                 context = self._resolve_build_context(variant_requires)
             except (PackageFamilyNotFoundError, PackageNotFoundError) as e:
+                print("[X] Error on resolving build-time context of '%s'"
+                      % join_variant_request(request, variant.index))
                 print(e)
                 requested.status = self.ResolveFailed
 
             else:
                 if not context.success:
+                    print("[!] Problems on resolving build-time context of '%s'"
+                          % join_variant_request(request, variant.index))
                     context.print_info()
                     requested.status = self.ResolveFailed
                 else:
