@@ -259,13 +259,10 @@ class TestManifest(TestBase):
     def test_buildtime_variants(self):
         @early()
         def variants():
+            from rez import packages
             bindings = ["pyqt", "pyside"]
-            if building:
-                return [[binding] for binding in bindings]
-            else:
-                from rez import packages
-                return [[binding] for binding in bindings
-                        if packages.get_latest_package_from_string(binding)]
+            return [[binding] for binding in bindings
+                    if packages.get_latest_package_from_string(binding)]
 
         self.dev_repo.add("shim", build_command=False, variants=variants)
         self.dev_repo.add("pyqt", build_command=False)
