@@ -16,7 +16,7 @@ from functools import partial
 from contextlib import contextmanager
 
 from rez.config import config as rezconfig
-from rez.utils.formatting import PackageRequest
+from rez.utils.formatting import PackageRequest, is_valid_package_name
 from rez.resolved_context import ResolvedContext
 from rez.developer_package import DeveloperPackage
 from rez.packages import Package, get_latest_package
@@ -60,6 +60,11 @@ class Required(object):
                % (self.name,
                   self.index,
                   PackageInstaller.StatusMapStr[self.status])
+
+
+def join_variant_request(request, variant_index):
+    index = "" if variant_index is None else ("[%d]" % variant_index)
+    return str(request) + index
 
 
 variant_index_regex = re.compile(r"(.+)\[([0-9]+)]")
@@ -358,13 +363,17 @@ class RequestSolver(object):
                 private_build_requires=True
             )
             try:
-                context = self._build_context(variant_requires)
+                context = self._resolve_build_context(variant_requires)
             except (PackageFamilyNotFoundError, PackageNotFoundError) as e:
+                print("[X] Error on resolving build-time context of '%s'"
+                      % join_variant_request(request, variant.index))
                 print(e)
                 requested.status = self.ResolveFailed
 
             else:
                 if not context.success:
+                    print("[!] Problems on resolving build-time context of '%s'"
+                          % join_variant_request(request, variant.index))
                     context.print_info()
                     requested.status = self.ResolveFailed
                 else:
@@ -378,6 +387,22 @@ class RequestSolver(object):
                                           variant_index=pkg.index)
             self._append(requested)
         self.__depended = None  # reset
+
+    def _resolve_build_context(self, requires, retry=True):
+        try:
+            context = self._build_context(requires)
+        except PackageFamilyNotFoundError as e:
+            missing = None
+            if retry:
+                missing = parse_package_family_not_found_error(str(e))
+
+            if missing:
+                self.loader.load(missing)
+                return self._resolve_build_context(requires, retry=False)
+            else:
+                raise e
+        else:
+            return context
 
     def _build_context(self, variant_requires):
         paths = self.loader.paths + self.installed_packages_path
@@ -530,3 +555,14 @@ class PackageInstaller(RequestSolver):
     def _run_command(self, cmd_args, **kwargs):
         print("Running command:\n    %s\n" % cmd_args)
         subprocess.check_call(cmd_args, **kwargs)
+
+
+def parse_package_family_not_found_error(message):
+    # package family not found: %s, was required by: ...
+
+    message = message.split(":", 1)[-1]
+    message = message.split(",", 1)[0]
+    family_name = message.strip()
+
+    if is_valid_package_name(family_name):
+        return family_name
