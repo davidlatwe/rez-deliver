@@ -13,11 +13,22 @@ def main():
     parser.add_argument("--release", action="store_true")
     opts, remains = parser.parse_known_args()
 
+    # for case like:
+    #
+    #   `tests.test_manifest.TestManifest.test_buildtime_variants`
+    #
+    # which requires to scan packages to list out current available variants,
+    # we resolve the request here again and append loader paths for including
+    # developer packages in that scan.
+    #
     solver = RequestSolver()
     solver.resolve(opts.PKG)
 
+    # build/release
+    #
     settings = {
-        "packages_path": solver.installed_packages_path,
+        # developer packages loader paths appended, see comment above.
+        "packages_path": solver.installed_packages_path + solver.loader.paths,
     }
     with override_config(settings):
         command = "release" if opts.release else "build"
