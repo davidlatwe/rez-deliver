@@ -118,9 +118,13 @@ class PackageLoader(object):
             for req in requires:
                 if isinstance(req, str):
                     req = PackageRequest(req)
-                if req.name not in seen and not req.ephemeral:
-                    seen.add(req.name)
-                    self.load(name=req.name)
+                if req.name in seen:
+                    continue
+                if req.ephemeral or req.conflict:
+                    continue
+
+                seen.add(req.name)
+                self.load(name=req.name)
 
     def find(self, request, load_dependency=False):
         """Find requested latest package
