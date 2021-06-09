@@ -291,6 +291,22 @@ class TestManifest(TestBase):
         self.assertEqual(self.installer.Installed, manifest[1].status)
         self.assertEqual(self.installer.Ready, manifest[2].status)
 
+    def test_skip_non_addition_requires_on_load(self):
+        self.dev_repo.add("foo", version="1",
+                          requires=["~bar==1"], build_command=False)
+        self.dev_repo.add("bar", version="1",
+                          requires=["foo-1"], build_command=False)
+
+        self.installer.resolve("foo")
+        manifest = self.installer.manifest()
+        self.assertEqual(1, len(manifest))
+        self.assertEqual(["foo-1"], [r.name for r in manifest])
+
+        self.installer.resolve("bar")
+        manifest = self.installer.manifest()
+        self.assertEqual(2, len(manifest))
+        self.assertEqual(["foo-1", "bar-1"], [r.name for r in manifest])
+
 
 if __name__ == "__main__":
     unittest.main()
