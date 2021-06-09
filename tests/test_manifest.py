@@ -50,7 +50,7 @@ class TestManifest(TestBase):
                         time.sleep(0.2)
 
     def _run_install(self):
-        # ensure module `deliver.run` can be accessed in subprocess.
+        # ensure module `deliver.install` can be accessed in subprocess.
         #
         import deliver
         PYTHONPATH = os.pathsep.join([

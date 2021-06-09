@@ -1,17 +1,14 @@
-"""A module that meant to find/resolve/install developer packages
+"""A module that meant to find/resolve developer packages
 
 Example:
     # setup rez-deliver config so it could find developer package
-    >>> installer = PackageInstaller()
+    >>> installer = RequestSolver()
     >>> installer.resolve("foo")
     >>> installer.manifest()
-    >>> installer.run()
 
 """
 import os
 import re
-import sys
-import subprocess
 from functools import partial
 from contextlib import contextmanager
 
@@ -24,12 +21,7 @@ from rez.exceptions import PackageFamilyNotFoundError, PackageNotFoundError
 
 from deliver.repository import PackageLoader
 from deliver.exceptions import RezDeliverRequestError, RezDeliverFatalError
-from deliver.lib import (
-    os_chdir,
-    expand_path,
-    override_config,
-    clear_repo_cache,
-)
+from deliver.lib import os_chdir, override_config
 
 
 class Required(object):
@@ -59,7 +51,7 @@ class Required(object):
         return "Required(name='%s', index=%r, status=%s)" \
                % (self.name,
                   self.index,
-                  PackageInstaller.StatusMapStr[self.status])
+                  RequestSolver.StatusMapStr[self.status])
 
 
 def join_variant_request(request, variant_index):
@@ -466,95 +458,6 @@ class RequestSolver(object):
     def _append(self, requested):
         if requested not in self._requirements:
             self._requirements.append(requested)
-
-
-class PackageInstaller(RequestSolver):
-    """Extended from `RequestSolver` to execute installation"""
-
-    def __init__(self, loader=None):
-        super(PackageInstaller, self).__init__(loader=loader)
-        self.release = False
-
-    @property
-    def installed_packages_path(self):
-        c, r = rezconfig, self.release
-        return c.nonlocal_packages_path if r else c.packages_path
-
-    @property
-    def deploy_path(self):
-        c, r = rezconfig, self.release
-        return c.release_packages_path if r else c.local_packages_path
-
-    def target(self, path):
-        """
-        Only set to 'release' when the `path` is release_packages_path.
-        """
-        path = expand_path(path)
-        release = path == expand_path(rezconfig.release_packages_path)
-
-        print("Mode: %s" % ("release" if release else "install"))
-        self.release = release
-        self.loader.release = release
-        self.reset()
-
-    def run(self):
-        for _ in self.run_iter():
-            pass
-
-    def run_iter(self):
-        for requested in self._requirements:
-            if requested.status != self.Ready:
-                # TODO: prompt warning if the status is `ResolveFailed`
-                continue
-
-            if requested.source == self.loader.maker_root:
-                self._make(requested.name,
-                           variant=requested.index)
-            else:
-                self._build(requested.name,
-                            os.path.dirname(requested.source),
-                            variant=requested.index)
-
-            yield requested
-
-    def _make(self, name, variant=None):
-        deploy_path = self.deploy_path
-        if not os.path.isdir(deploy_path):
-            os.makedirs(deploy_path)
-
-        made_pkg = self.loader.get_maker_made_package(name)
-        made_pkg.__install__(deploy_path, variant)
-
-        clear_repo_cache(deploy_path)
-
-    def _build(self, name, src_dir, variant=None):
-        variant_cmd = [] if variant is None else ["--variants", str(variant)]
-        deploy_path = self.deploy_path
-
-        if not os.path.isdir(deploy_path):
-            os.makedirs(deploy_path)
-
-        if variant is not None:
-            name += "[%d]" % variant
-
-        env = os.environ.copy()
-        cmd = [sys.executable, "-m", "deliver.run", name]
-
-        if self.release:
-            env["REZ_RELEASE_PACKAGES_PATH"] = deploy_path
-            cmd += ["--release"]
-        else:
-            env["REZ_LOCAL_PACKAGES_PATH"] = deploy_path
-            cmd += ["--install"]
-
-        cmd += variant_cmd
-        self._run_command(cmd, cwd=src_dir, env=env)
-
-        clear_repo_cache(deploy_path)
-
-    def _run_command(self, cmd_args, **kwargs):
-        print("Running command:\n    %s\n" % cmd_args)
-        subprocess.check_call(cmd_args, **kwargs)
 
 
 def parse_package_family_not_found_error(message):

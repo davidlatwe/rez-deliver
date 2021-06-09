@@ -1,6 +1,7 @@
 
 from deliver.repository import PackageLoader
-from deliver.solve import PackageInstaller, RequestSolver
+from deliver.solve import RequestSolver
+from deliver.install import PackageInstaller
 from deliver.exceptions import (
     RezDeliverError,
     RezDeliverRequestError,
