@@ -2,6 +2,7 @@
 Rez developer package delivering tool
 """
 import sys
+import types
 import argparse
 try:
     from rez.command import Command
@@ -37,12 +38,6 @@ def setup_parser(parser, completions=False):
                         help="Package names to deploy.")
     parser.add_argument("-r", "--release", action="store_true",
                         help="Deploy package as release.")
-    parser.add_argument("-i", "--install", action="store_true",
-                        help="Deploy package as install.")
-    parser.add_argument("-p", "--install-path",
-                        help="Packages will be installed to a custom path "
-                             "if path given, or to Rez local_packages_path "
-                             "by default.")
     parser.add_argument("--dry-run", action="store_true",
                         help="List out all packages that will be deployed "
                              "and exit.")
@@ -73,27 +68,12 @@ def command(opts, parser=None, extra_arg_groups=None):
         cli.list_developer_packages(opts.PKG)
         return
 
+    if opts.release:
+        path = config.release_packages_path
+    else:
+        path = config.local_packages_path
+
     if opts.PKG:
-
-        if opts.release and opts.install:
-            print("Cannot set both --release and --install flags.")
-            return
-
-        if not opts.release and not opts.install:
-            print("Must pick one deploy option --release or --install.")
-            return
-
-        if opts.release and opts.install_path:
-            print("--install-path doesn't work with --release.")
-            return
-
-        if opts.install:
-            path = opts.install_path or config.local_packages_path
-        elif opts.release:
-            path = config.release_packages_path
-        else:
-            raise Exception("Undefined behavior.")
-
         if cli.deploy_packages(opts.PKG, path, opts.dry_run, opts.yes):
             if not opts.dry_run:
                 print("=" * 30)
@@ -107,6 +87,7 @@ def command(opts, parser=None, extra_arg_groups=None):
 class DeliverCommand(Command):
     schema_dict = {
         "dev_repository_roots": list,
+        "on_package_deployed_callback": types.FunctionType,
     }
 
     @classmethod

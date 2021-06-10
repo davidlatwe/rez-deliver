@@ -7,46 +7,19 @@ import subprocess
 from rez.config import config as rezconfig
 
 from deliver.solve import RequestSolver
-from deliver.lib import (
-    expand_path,
-    clear_repo_cache,
-)
+from deliver.lib import clear_repo_cache
 
 
 class PackageInstaller(RequestSolver):
     """Extended from `RequestSolver` to execute installation"""
-
-    def __init__(self, loader=None):
-        super(PackageInstaller, self).__init__(loader=loader)
-        self.release = False
-
-    @property
-    def installed_packages_path(self):
-        c, r = rezconfig, self.release
-        return c.nonlocal_packages_path if r else c.packages_path
-
-    @property
-    def deploy_path(self):
-        c, r = rezconfig, self.release
-        return c.release_packages_path if r else c.local_packages_path
-
-    def target(self, path):
-        """
-        Only set to 'release' when the `path` is release_packages_path.
-        """
-        path = expand_path(path)
-        release = path == expand_path(rezconfig.release_packages_path)
-
-        print("Mode: %s" % ("release" if release else "install"))
-        self.release = release
-        self.loader.release = release
-        self.reset()
 
     def run(self):
         for _ in self.run_iter():
             pass
 
     def run_iter(self):
+        deliverconfig = rezconfig.plugins.command.deliver
+
         for requested in self._requirements:
             if requested.status != self.Ready:
                 # TODO: prompt warning if the status is `ResolveFailed`
@@ -59,6 +32,11 @@ class PackageInstaller(RequestSolver):
                 self._build(requested.name,
                             os.path.dirname(requested.source),
                             variant=requested.index)
+
+            deliverconfig.on_package_deployed_callback(
+                name=requested.name,
+                path=self.deploy_path,
+            )
 
             yield requested
 
@@ -85,7 +63,7 @@ class PackageInstaller(RequestSolver):
         env = os.environ.copy()
         cmd = [sys.executable, "-m", "deliver.install", name]
 
-        if self.release:
+        if self._release:
             env["REZ_RELEASE_PACKAGES_PATH"] = deploy_path
             cmd += ["--release"]
         else:

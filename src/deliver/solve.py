@@ -21,7 +21,7 @@ from rez.exceptions import PackageFamilyNotFoundError, PackageNotFoundError
 
 from deliver.repository import PackageLoader
 from deliver.exceptions import RezDeliverRequestError, RezDeliverFatalError
-from deliver.lib import os_chdir, override_config
+from deliver.lib import os_chdir, override_config, expand_path
 
 
 class Required(object):
@@ -92,18 +92,48 @@ class RequestSolver(object):
 
     def __init__(self, loader=None):
         self.loader = loader or PackageLoader()
+        self._release = False
+        self._deploy_path = None
         self._requirements = list()
         self._conflicts = list()
         self.__depended = None
 
     @property
+    def is_release(self):
+        return self._release
+
+    @property
+    def deploy_path(self):
+        return self._deploy_path or rezconfig.local_packages_path
+
+    @property
     def installed_packages_path(self):
-        return rezconfig.packages_path
+        c, r = rezconfig, self._release
+        return c.nonlocal_packages_path if r else c.packages_path
 
     def reset(self):
         """Reset resolved manifest"""
         self._requirements = []
         self.__depended = None
+
+    def deploy_to(self, path):
+        """Set package deploy path
+
+        Only set to 'release' when the `path` is release_packages_path.
+        Calling this will also trigger `reset()`.
+
+        """
+        path = expand_path(path)
+        release = path == expand_path(rezconfig.release_packages_path)
+
+        print("Mode: {mode} (-> {path})".format(
+            mode="release" if release else "install",
+            path=path,
+        ))
+        self._deploy_path = path
+        self._release = release
+        self.loader.release = release
+        self.reset()
 
     def resolve(self, *requests):
         """Resolve multiple requests and their dependencies recursively

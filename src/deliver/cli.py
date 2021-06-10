@@ -33,7 +33,7 @@ def list_developer_packages(requests=None):
 def deploy_packages(requests, path, dry_run=False, yes=False):
 
     installer = api.PackageInstaller()
-    installer.target(path)
+    installer.deploy_to(path)
 
     installer.resolve(*requests)
 
