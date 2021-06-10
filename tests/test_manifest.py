@@ -35,6 +35,7 @@ class TestManifest(TestBase):
         }
         super(TestManifest, self).setUp()
 
+        PackageLoader.clear_instance()
         self.installer = PackageInstaller(PackageLoader())
 
     def tearDown(self):

@@ -51,6 +51,11 @@ class PackageLoader(object):
             cls.__singleton = super().__new__(cls)
         return cls.__singleton
 
+    @classmethod
+    def clear_instance(cls):
+        cls.__singleton = None
+        cls.__initialized = False
+
     def __init__(self):
         if self.__initialized:
             return
