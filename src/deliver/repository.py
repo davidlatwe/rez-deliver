@@ -2,6 +2,7 @@
 import os
 import logging
 import subprocess
+from functools import wraps
 
 from rez.config import config as rezconfig
 from rez.utils.formatting import PackageRequest
@@ -24,6 +25,23 @@ from deliver.maker.rez import pkg_rez
 
 # silencing rez logger, e.g. on package preprocessing
 rez_logger.setLevel(logging.WARNING)
+
+
+def _with_loader_config(fn):
+    @wraps(fn)
+    def decorated(self, *args, **kwargs):
+        with override_config(self.settings):
+            return fn(self, *args, **kwargs)
+    return decorated
+
+
+def _iter_with_loader_config(fn):
+    @wraps(fn)
+    def decorated(self, *args, **kwargs):
+        with override_config(self.settings):
+            for item in fn(self, *args, **kwargs):
+                yield item
+    return decorated
 
 
 class PackageLoader(object):
@@ -76,26 +94,21 @@ class PackageLoader(object):
 
     @property
     def settings(self):
-        dev_paths = [repo.root for repo in self._dev_repos[:-1]]
-        dev_paths.append(self._maker_repo.mem_uid)
-        # Noted that the maker repo doesn't have filesystem based package,
-        #   use memory path `mem_uid` as root instead.
-
         return {
             # Append `dev_paths` into `config.packages_path` so the requires
             # can be expanded properly with other pre-installed packages.
             # If we don't do this, requirements like "os-*" or "python-2.*"
             # may raise error like schema validation fail (which is also
             # confusing) due to package not found.
-            "packages_path": rezconfig.packages_path[:] + dev_paths,
+            "packages_path": rezconfig.packages_path[:] + self.paths,
             # Ensure unversioned package is allowed, so we can iter dev
             # packages.
             "allow_unversioned_packages": True,
         }
 
     @property
-    def maker_root(self):
-        return self._maker_repo.root
+    def maker_source(self):
+        return self._maker_repo.mem_uid
 
     @property
     def paths(self):
@@ -105,65 +118,27 @@ class PackageLoader(object):
         paths = [self._maker_repo.mem_uid]
         return get_latest_package_from_string(name, paths=paths)
 
-    def load(self, name=None, dependency=True):
-        """Load package and it's dependencies optionally from all repositories
-
-        Args:
-            name (str): package family name, optional. Load all if not given.
-            dependency (bool): If True and `name` given, load all dependencies
-                recursively.
-
-        Returns:
-            None
-
-        """
-        with override_config(self.settings):
-            for repo in self._dev_repos:
-                repo.load(name=name)
-
-        if name and dependency:
-            # lazy load, recursively
-            requires = []
-            for package in self.iter_packages(name):
-                for variant in package.iter_variants():
-                    requires += variant.get_requires(
-                        build_requires=True,
-                        private_build_requires=True
-                    )
-
-            seen = set()
-            for req in requires:
-                if isinstance(req, str):
-                    req = PackageRequest(req)
-                if req.name in seen:
-                    continue
-                if req.ephemeral or req.conflict:
-                    continue
-
-                seen.add(req.name)
-                self.load(name=req.name)
-
-    def find(self, request, load_dependency=False):
+    @_with_loader_config
+    def find(self, request):
         """Find requested latest package
 
         Args:
             request (PackageRequest): package request object
-            load_dependency (bool): If True, the dependency will be loaded
-                recursively before returning searched result.
 
         Returns:
             `Package`: latest package in requested range, None if not found.
 
         """
-        self.load(name=request.name, dependency=load_dependency)
         return get_latest_package(name=request.name,
                                   range_=request.range_,
                                   paths=self.paths)
 
+    @_iter_with_loader_config
     def iter_package_families(self):
         for family in iter_package_families(paths=self.paths):
             yield family
 
+    @_iter_with_loader_config
     def iter_packages(self, name, range_=None):
         for package in iter_packages(name, range_=range_, paths=self.paths):
             yield package
@@ -188,12 +163,10 @@ class Repo(object):
         """
         self._root = root
         self._loader = loader
-        self._loaded = set()
-        self._all_loaded = False
 
-    def __contains__(self, pkg):
-        uid = "@".join(pkg.parent.repository.uid[:2])
-        return uid == self.mem_uid
+        # mount dev repo instance to memory repository
+        self._loaded_cache = dict()
+        self.mem_repo.data = self
 
     @property
     def mem_uid(self):
@@ -216,40 +189,27 @@ class Repo(object):
     def iter_package_family_names(self):
         raise NotImplementedError
 
-    def load(self, name=None):
-        """Load dev-packages into build-time memory repository
+    # Simple dict-like interface for memory repository to read
+    #
+    def __getitem__(self, name):
+        return {k: v for k, v in self.get_dev_package_versions(name)}
 
-        Args:
-            name (str): package family name, optional.
-                All packages will be loaded if family name not given.
+    def get(self, key, default=None):
+        return self.__getitem__(key) or default
 
-        Returns:
-            None
+    def keys(self):
+        return self.iter_package_family_names()
 
-        """
-        if self._all_loaded:
-            return
-
-        if name:
-            # lazy load
-            if name in self._loaded:
-                return
-
-            for version, data in self.get_dev_package_versions(name):
-                if name not in self.mem_repo.data:
-                    self.mem_repo.data[name] = dict()
-                self.mem_repo.data[name][version] = data
-
-            self._loaded.add(name)
-
+    def __contains__(self, pkg):
+        if isinstance(pkg, str):
+            # querying from memory repository
+            return self.has_package(pkg)
         else:
-            # full load
-            self.mem_repo.data = {
-                name: versions for name, versions
-                in self.iter_dev_packages()
-            }
+            uid = "@".join(pkg.parent.repository.uid[:2])
+            return uid == self.mem_uid
 
-            self._all_loaded = True
+    def has_package(self, name):
+        raise NotImplementedError
 
 
 class MakePkgRepo(Repo):
@@ -267,19 +227,41 @@ class MakePkgRepo(Repo):
             "rez": pkg_rez,
         }
 
+    def has_package(self, name):
+        return name in self.makers
+
     def iter_dev_packages(self):
         for name in self.makers:
-            package = self._make_package(name)
-            data = package.data
-            yield name, {data["version"]: data}
+            if name in self._loaded_cache:
+                versions = self._loaded_cache[name]
+
+            else:
+                package = self._make_package(name)
+                data = package.data
+                version = data.get("version", "_NO_VERSION")
+                versions = {version: data}
+                self._loaded_cache[name] = versions
+
+            yield name, versions
 
     def get_dev_package_versions(self, name):
-        package = self._make_package(name)
-        if package:
+        if name in self._loaded_cache:
+            versions = self._loaded_cache[name]
+            for version, data in versions.items():
+                yield version, data
+
+        else:
+            package = self._make_package(name)
+            if package is None:
+                return
+
             data = package.data
             version = data.get("version", "_NO_VERSION")
+            versions = {version: data}
 
             yield version, data
+
+            self._loaded_cache[name] = versions
 
     def iter_package_family_names(self):
         for name in self.makers:
@@ -290,7 +272,7 @@ class MakePkgRepo(Repo):
         func = self.makers.get(name)
         if func is not None:
             maker = func(release=release)
-            maker.__source__ = self.root
+            maker.__source__ = self.mem_uid
             return maker.get_package()
 
 
@@ -326,25 +308,54 @@ class DevPkgRepo(Repo):
         E.g. `0.1.0-p1`
 
     """
+    def __init__(self, root, loader):
+        Repo.__init__(self, root=root, loader=loader)
+        self._seen_cache = dict()
+
+    def has_package(self, name):
+        existence = self._seen_cache.get(name)
+        if existence is None:
+            for family in self.iter_package_family_names():
+                if name == family:
+                    existence = True
+                    break
+            self._seen_cache[name] = existence or False
+
+        return existence
 
     def iter_dev_packages(self):
         for family in iter_package_families(paths=[self._root]):
             name = family.name  # package dir name
-            versions = dict()
 
-            for version, data in self._generate_dev_packages(family):
-                versions[version] = data
+            if name in self._loaded_cache:
+                versions = self._loaded_cache[name]
+
+            else:
+                versions = dict()
+                for version, data in self._generate_dev_packages(family):
+                    versions[version] = data
+                self._loaded_cache[name] = versions
 
             yield name, versions
 
     def get_dev_package_versions(self, name):
-        it = iter_package_families(paths=[self._root])
-        family = next((f for f in it if f.name == name), None)
-        if family is None:
-            return
+        if name in self._loaded_cache:
+            versions = self._loaded_cache[name]
+            for version, data in versions.items():
+                yield version, data
 
-        for version, data in self._generate_dev_packages(family):
-            yield version, data
+        else:
+            it = iter_package_families(paths=[self._root])
+            family = next((f for f in it if f.name == name), None)
+            if family is None:
+                return
+
+            versions = dict()
+            for version, data in self._generate_dev_packages(family):
+                versions[version] = data
+                yield version, data
+
+            self._loaded_cache[name] = versions
 
     def iter_package_family_names(self):
         for family in iter_package_families(paths=[self._root]):

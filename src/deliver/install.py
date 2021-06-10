@@ -25,7 +25,7 @@ class PackageInstaller(RequestSolver):
                 # TODO: prompt warning if the status is `ResolveFailed`
                 continue
 
-            if requested.source == self.loader.maker_root:
+            if requested.source == self.loader.maker_source:
                 self._make(requested.name,
                            variant=requested.index)
             else:

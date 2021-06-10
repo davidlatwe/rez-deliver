@@ -307,7 +307,7 @@ class RequestSolver(object):
 
         """
         # find latest package in requested range
-        developer = self.loader.find(request, load_dependency=True)
+        developer = self.loader.find(request)
         installed = self._find_installed(request)
 
         if developer is None and installed is None:
@@ -370,7 +370,7 @@ class RequestSolver(object):
                         "Fatal Error: Request status is 'Ready' but developer "
                         "package is not used, this is a bug."
                     )
-                if source != self.loader.maker_root:
+                if source != self.loader.maker_source:
                     variant = self._re_evaluate_variant(variant) or variant
                 else:
                     # no need to re-evaluate maker package in build.
@@ -410,19 +410,11 @@ class RequestSolver(object):
             self._append(requested)
         self.__depended = None  # reset
 
-    def _resolve_build_context(self, requires, retry=True):
+    def _resolve_build_context(self, requires):
         try:
             context = self._build_context(requires)
         except PackageFamilyNotFoundError as e:
-            missing = None
-            if retry:
-                missing = parse_package_family_not_found_error(str(e))
-
-            if missing:
-                self.loader.load(missing)
-                return self._resolve_build_context(requires, retry=False)
-            else:
-                raise e
+            raise e
         else:
             return context
 
@@ -474,14 +466,6 @@ class RequestSolver(object):
 
         re_evaluated_package.set_context(context)
         re_evaluated_variant = re_evaluated_package.get_variant(variant.index)
-
-        # Ensure all requires are loaded after re-evaluated
-        for request in re_evaluated_variant.get_requires(
-            build_requires=True, private_build_requires=True
-        ):
-            if isinstance(request, PackageRequest):
-                request = request.name
-            self.loader.load(request, dependency=True)
 
         return re_evaluated_variant
 

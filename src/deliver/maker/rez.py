@@ -51,7 +51,6 @@ def find_python_package_versions(release):
     versions = set()
 
     loader = PackageLoader()
-    loader.load(name=python)
 
     paths = rezconfig.nonlocal_packages_path[:] if release \
         else rezconfig.packages_path[:]
