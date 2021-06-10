@@ -1,18 +1,17 @@
 
 import os
-
+from copy import deepcopy
 from rez.utils.sourcecode import _add_decorator, SourceCode, late, include
 from rez.serialise import process_python_objects, FileFormat
-from rez.vendor.schema.schema import Schema, Optional, Or
+from rez.vendor.schema.schema import Schema, Or
 from rez.package_serialise import (
     package_serialise_schema,
-    package_request_schema,
     package_key_order,
     dump_functions,
 )
 
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "DeveloperRepository",
@@ -112,14 +111,14 @@ class DeveloperRepository(object):
         :param kwargs: arbitrary package attributes
         :return:
         """
-        data = kwargs
+        data = deepcopy(kwargs)
         data["name"] = name
 
         # process early/late bound functions
         #
-        for key, value in kwargs.items():
+        for key, value in data.items():
             if hasattr(value, "_early"):
-                kwargs[key] = SourceCode(func=value, eval_as_function=True)
+                data[key] = SourceCode(func=value, eval_as_function=True)
         process_python_objects(data)
 
         # write out
@@ -129,8 +128,9 @@ class DeveloperRepository(object):
         if version and isinstance(version, str):
             pkg_base_path = os.path.join(pkg_base_path, version)
 
+        if not os.path.isdir(pkg_base_path):
+            os.makedirs(pkg_base_path)
         filepath = os.path.join(pkg_base_path, "package.py")
-        os.makedirs(pkg_base_path, exist_ok=True)
         with open(filepath, "w") as f:
             dump_developer_package_data(data, buf=f, format_=FileFormat.py)
 
@@ -201,9 +201,9 @@ def early_bound(schema):
 
 
 _schema_dict = package_serialise_schema._schema.copy()
-_schema_dict[Optional("variants")] = early_bound([[package_request_schema]])
-
-developer_serialise_schema = Schema(_schema_dict)
+developer_serialise_schema = Schema(
+    {key: early_bound(value) for key, value in _schema_dict.items()}
+)
 
 
 # MIT License

@@ -35,6 +35,7 @@ class TestManifest(TestBase):
         }
         super(TestManifest, self).setUp()
 
+        PackageLoader.clear_instance()
         self.installer = PackageInstaller(PackageLoader())
 
     def tearDown(self):
@@ -50,7 +51,7 @@ class TestManifest(TestBase):
                         time.sleep(0.2)
 
     def _run_install(self):
-        # ensure module `deliver.run` can be accessed in subprocess.
+        # ensure module `deliver.install` can be accessed in subprocess.
         #
         import deliver
         PYTHONPATH = os.pathsep.join([
@@ -306,6 +307,28 @@ class TestManifest(TestBase):
         manifest = self.installer.manifest()
         self.assertEqual(2, len(manifest))
         self.assertEqual(["foo-1", "bar-1"], [r.name for r in manifest])
+
+    def test_expanding_maker_package(self):
+        self.dev_repo.add("a", requires=["platform-*"])
+
+        self.installer.resolve("a")
+        manifest = self.installer.manifest()
+        self.assertEqual(2, len(manifest))
+
+    def test_expanding_git_versioned_package(self):
+        self.dev_repo.add("a", requires=["delivertest-*"])
+
+        @early()
+        def version():
+            import os
+            return os.getenv("REZ_DELIVER_PKG_PAYLOAD_VER", "0.0")
+        git_url = "https://github.com/davidlatwe/delivertest.git"
+
+        self.dev_repo.add("delivertest", version=version, git_url=git_url)
+
+        self.installer.resolve("a")
+        manifest = self.installer.manifest()
+        self.assertEqual(2, len(manifest))
 
 
 if __name__ == "__main__":

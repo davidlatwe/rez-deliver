@@ -45,6 +45,13 @@ class KitReleaseVCS(git.GitReleaseVCS):
         return self.git(*args)[0]
 
     def git(self, *nargs):
+        if nargs[0] in {"diff-index"}:
+            # Refresh index before running diff
+            #   Sometimes, the codebase has no difference but the return
+            #   code of command like `git diff-index --quite HEAD -- *`
+            #   is not 0 and run `git status` to do a refresh solved it.
+            self._cmd(self.executable, "status")
+
         if not self.is_kit:
             return self._cmd(self.executable, *nargs)
 

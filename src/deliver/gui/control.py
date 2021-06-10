@@ -97,12 +97,11 @@ class Controller(QtCore.QObject):
         timer.start(on_time)
 
     def on_package_searched(self):
-        self._state["loader"].load()
         self._models["pkgBook"].reset(self.iter_dev_packages())
 
     def on_target_changed(self, path):
         installer = self._state["installer"]
-        installer.target(path)
+        installer.deploy_to(path)
         self._models["pkgManifest"].clear()
 
     def on_manifested(self):
