@@ -27,7 +27,7 @@ rez_logger.setLevel(logging.WARNING)
 
 
 class PackageLoader(object):
-    """Load developer packages from multiple repositories
+    """A singleton that loads developer packages from multiple repositories
 
     The loader will look for packages from all registered repository paths in
     rezconfig. For example:
@@ -43,8 +43,20 @@ class PackageLoader(object):
         }}}
 
     """
+    __singleton = None
+    __initialized = False
+
+    def __new__(cls, *args, **kwargs):
+        if cls.__singleton is None:
+            cls.__singleton = super().__new__(cls)
+        return cls.__singleton
 
     def __init__(self):
+        if self.__initialized:
+            return
+        self.__initialized = True
+        # init
+        #
         deliverconfig = rezconfig.plugins.command.deliver
         maker_repo = MakePkgRepo(loader=self)
         dev_repos = [
