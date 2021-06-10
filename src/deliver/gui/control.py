@@ -101,7 +101,7 @@ class Controller(QtCore.QObject):
 
     def on_target_changed(self, path):
         installer = self._state["installer"]
-        installer.target(path)
+        installer.deploy_to(path)
         self._models["pkgManifest"].clear()
 
     def on_manifested(self):
