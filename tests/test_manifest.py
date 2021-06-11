@@ -4,7 +4,9 @@ import time
 import shutil
 import tempfile
 import unittest
+from unittest.mock import patch
 from deliver.api import PackageLoader, PackageInstaller
+from deliver.repository import DevPkgRepo
 from deliver.lib import temp_env
 from tests.util import TestBase, require_directives
 from tests.ghostwriter import DeveloperRepository, early, late, building
@@ -308,23 +310,41 @@ class TestManifest(TestBase):
         self.assertEqual(2, len(manifest))
         self.assertEqual(["foo-1", "bar-1"], [r.name for r in manifest])
 
-    def test_expanding_maker_package(self):
-        self.dev_repo.add("a", requires=["platform-*"])
-
-        self.installer.resolve("a")
-        manifest = self.installer.manifest()
-        self.assertEqual(2, len(manifest))
-
-    def test_expanding_git_versioned_package(self):
-        self.dev_repo.add("a", requires=["delivertest-*"])
-
+    @patch.object(DevPkgRepo, "_git_tags", return_value=["1.0.0"])
+    def test_git_versioned_package(self, mock_git_tags):
         @early()
         def version():
             import os
-            return os.getenv("REZ_DELIVER_PKG_PAYLOAD_VER", "0.0")
-        git_url = "https://github.com/davidlatwe/delivertest.git"
+            return os.getenv("REZ_DELIVER_PKG_PAYLOAD_VER", "unknown")
+        git_url = ".../davidlatwe/bar.git"
 
-        self.dev_repo.add("delivertest", version=version, git_url=git_url)
+        self.dev_repo.add("bar", version=version, git_url=git_url)
+
+        self.installer.resolve("bar")
+        manifest = self.installer.manifest()
+
+        self.assertEqual(self.installer.Ready, manifest[0].status)
+        self.assertEqual("bar-1.0.0", manifest[0].name)
+
+    @patch.object(DevPkgRepo, "_git_tags", return_value=["1.0.0"])
+    def test_expanding_git_versioned_package(self, mock_git_tags):
+        @early()
+        def version():
+            import os
+            return os.getenv("REZ_DELIVER_PKG_PAYLOAD_VER", "unknown")
+        git_url = ".../davidlatwe/bar.git"
+
+        self.dev_repo.add("bar", version=version, git_url=git_url)
+        self.dev_repo.add("foo", requires=["bar-**"])
+
+        self.installer.resolve("foo")
+        manifest = self.installer.manifest()
+        self.assertEqual(2, len(manifest))
+
+        self.assertEqual("bar-1.0.0", manifest[0].name)
+
+    def test_expanding_maker_package(self):
+        self.dev_repo.add("a", requires=["platform-*"])
 
         self.installer.resolve("a")
         manifest = self.installer.manifest()
