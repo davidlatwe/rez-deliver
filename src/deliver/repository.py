@@ -164,7 +164,12 @@ class Repo(object):
         self._root = root
         self._loader = loader
 
-        # mount dev repo instance to memory repository
+        # Mount self to memory repository, so the package only gets
+        #   evaluated when asked. The evaluation happens in family
+        #   level, which means all versions will be loaded once the
+        #   family is being asked. Also, evaluated versions will be
+        #   cached.
+        #
         self._loaded_cache = dict()
         self.mem_repo.data = self
 
@@ -189,10 +194,14 @@ class Repo(object):
     def iter_package_family_names(self):
         raise NotImplementedError
 
-    # Simple dict-like interface for memory repository to read
+    # Simple dict-like interface for memory repository to access
+    #   developer packages.
     #
     def __getitem__(self, name):
-        return {k: v for k, v in self.get_dev_package_versions(name)}
+        return {
+            version: data for version, data
+            in self.get_dev_package_versions(name)
+        }
 
     def __contains__(self, pkg):
         if isinstance(pkg, str):
