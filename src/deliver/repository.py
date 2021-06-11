@@ -386,6 +386,7 @@ class DevPkgRepo(Repo):
                         developer = DeveloperPackage.from_path(dirpath)
 
                         data = developer.data.copy()
+                        data["__ver_tag__"] = ver_tag
                         data["__source__"] = developer.filepath
                         version = data.get("version", "_NO_VERSION")
 

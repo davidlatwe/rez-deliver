@@ -21,7 +21,7 @@ from rez.exceptions import PackageFamilyNotFoundError, PackageNotFoundError
 
 from deliver.repository import PackageLoader
 from deliver.exceptions import RezDeliverRequestError, RezDeliverFatalError
-from deliver.lib import os_chdir, override_config, expand_path
+from deliver.lib import os_chdir, override_config, expand_path, temp_env
 
 
 class Required(object):
@@ -459,11 +459,15 @@ class RequestSolver(object):
 
         pkg_path = os.path.dirname(filepath)
         with override_config(self.loader.settings), os_chdir(pkg_path):
-            re_evaluated_package = package.get_reevaluated({
-                "building": True,
-                "build_variant_index": variant.index or 0,
-                "build_variant_requires": variant.variant_requires
-            })
+
+            ver_tag = package.data.get("__ver_tag__", "__no_remote__")
+            with temp_env("REZ_DELIVER_PKG_PAYLOAD_VER", ver_tag):
+
+                re_evaluated_package = package.get_reevaluated({
+                    "building": True,
+                    "build_variant_index": variant.index or 0,
+                    "build_variant_requires": variant.variant_requires
+                })
 
         re_evaluated_package.set_context(context)
         re_evaluated_variant = re_evaluated_package.get_variant(variant.index)
