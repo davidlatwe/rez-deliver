@@ -36,6 +36,7 @@ class Required(object):
 
     @classmethod
     def get(cls, name, index=-1, from_=None):
+        name = str(name)
         from_ = from_ or []
         try:
             req_id = from_.index((name, index))
