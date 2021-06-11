@@ -194,12 +194,6 @@ class Repo(object):
     def __getitem__(self, name):
         return {k: v for k, v in self.get_dev_package_versions(name)}
 
-    def get(self, key, default=None):
-        return self.__getitem__(key) or default
-
-    def keys(self):
-        return self.iter_package_family_names()
-
     def __contains__(self, pkg):
         if isinstance(pkg, str):
             # querying from memory repository
@@ -207,6 +201,12 @@ class Repo(object):
         else:
             uid = "@".join(pkg.parent.repository.uid[:2])
             return uid == self.mem_uid
+
+    def get(self, key, default=None):
+        return self.__getitem__(key) or default
+
+    def keys(self):
+        return self.iter_package_family_names()
 
     def has_package(self, name):
         raise NotImplementedError
