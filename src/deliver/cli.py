@@ -3,6 +3,7 @@ from deliver import api
 
 
 def list_developer_packages(requests=None):
+    from rez.utils.formatting import PackageRequest
 
     loader = api.PackageLoader()
 
@@ -13,6 +14,8 @@ def list_developer_packages(requests=None):
             print(n)
 
     else:
+        requests = [PackageRequest(r) for r in requests]
+
         names = list()
         for request in requests:
             pkg = loader.find(request)
