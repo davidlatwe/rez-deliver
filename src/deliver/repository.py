@@ -8,6 +8,7 @@ from rez.config import config as rezconfig
 from rez.utils.formatting import PackageRequest
 from rez.developer_package import DeveloperPackage
 from rez.utils.logging_ import logger as rez_logger
+from rez.vendor.version.version import Version, VersionError
 from rez.package_repository import package_repository_manager
 from rez.packages import (
     iter_package_families,
@@ -378,35 +379,60 @@ class DevPkgRepo(Repo):
             filepath = package.uri
             dirpath = os.path.dirname(filepath)
             with os_chdir(dirpath):
-                # If we don't change cwd to package dir, dev package may
-                # not be evaluated correctly.
+                # If we don't change cwd to package dir, dev package data may
+                # not be retrieved/evaluated correctly.
                 # For example, `git shortlog` is often being used to get
                 # package authors, which will not work and hang the process
                 # with message "reading log message from standard input", if
                 # cwd is not (in) a git repository.
 
                 git_url = package.data.get("git_url")
-                tags = (
-                    self._git_tags(git_url) if git_url else ["__no_remote__"]
-                )
-                for ver_tag in tags:
+
+                if git_url:
                     # generate versions from git tags
-                    with temp_env("REZ_DELIVER_PKG_PAYLOAD_VER", ver_tag):
-                        developer = DeveloperPackage.from_path(dirpath)
+                    for ver_str in self._sorted_versions_from_remote(git_url):
+                        with temp_env("REZ_DELIVER_PKG_PAYLOAD_VER", ver_str):
+                            developer = DeveloperPackage.from_path(dirpath)
 
-                        data = developer.data.copy()
-                        data["__ver_tag__"] = ver_tag
-                        data["__source__"] = developer.filepath
-                        version = data.get("version", "_NO_VERSION")
+                            data = developer.data.copy()
+                            data["__ver_tag__"] = ver_str
+                            data["__source__"] = developer.filepath
+                            version = data.get("version", "_NO_VERSION")
 
-                        yield version, data
+                            yield version, data
+
+                else:
+                    developer = DeveloperPackage.from_path(dirpath)
+
+                    data = developer.data.copy()
+                    data["__source__"] = developer.filepath
+                    version = data.get("version", "_NO_VERSION")
+
+                    yield version, data
+
+    def _sorted_versions_from_remote(self, git_url):
+        deliverconfig = rezconfig.plugins.command.deliver
+        limit = deliverconfig.max_git_tag_from_remote
+        versions = list()
+
+        for ver_tag in self._git_tags(git_url):
+            try:
+                version = Version(ver_tag)
+            except VersionError as e:
+                print("Error parsing tag [%s]: %s" % (ver_tag, str(e)))
+            else:
+                versions.append(version)
+
+        return [
+            str(version) for version in sorted(versions)[-limit:]
+        ]
 
     def _git_tags(self, url):
         args = ["git", "ls-remote", "--tags", url]
         try:
             output = subprocess.check_output(args, universal_newlines=True)
-        except subprocess.CalledProcessError:
-            yield "__git_failed__"
+        except subprocess.CalledProcessError as e:
+            print(e)
         else:
             for line in output.splitlines():
                 yield line.split("refs/tags/")[-1]

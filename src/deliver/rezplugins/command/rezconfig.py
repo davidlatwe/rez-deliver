@@ -12,4 +12,6 @@ deliver = {
 
     "on_package_deployed_callback": on_package_deployed_callback,
 
+    "max_git_tag_from_remote": 10,
+
 }

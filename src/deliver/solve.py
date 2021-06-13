@@ -460,7 +460,7 @@ class RequestSolver(object):
         pkg_path = os.path.dirname(filepath)
         with override_config(self.loader.settings), os_chdir(pkg_path):
 
-            ver_tag = package.data.get("__ver_tag__", "__no_remote__")
+            ver_tag = package.data.get("__ver_tag__")
             with temp_env("REZ_DELIVER_PKG_PAYLOAD_VER", ver_tag):
 
                 re_evaluated_package = package.get_reevaluated({

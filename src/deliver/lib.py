@@ -9,11 +9,14 @@ from rez.package_repository import package_repository_manager
 @contextmanager
 def temp_env(key, value):
     try:
-        os.environ[key] = value
+        if value is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = value
         yield
+
     finally:
-        if key in os.environ:
-            del os.environ[key]
+        os.environ.pop(key, None)
 
 
 @contextmanager
