@@ -15,6 +15,7 @@ class Window(QtWidgets.QWidget):
 
         pages = {
             "pkgBook": view.PackageBookView(),
+            "split": QtWidgets.QSplitter(),
             "actions": QtWidgets.QTabWidget(),
             "pkgInfo": view.PackageDataView(),
             "install": view.InstallerView(),
@@ -23,9 +24,12 @@ class Window(QtWidgets.QWidget):
         pages["actions"].addTab(pages["pkgInfo"], "Package")
         pages["actions"].addTab(pages["install"], "Install")
 
+        pages["split"].setOrientation(QtCore.Qt.Horizontal)
+        pages["split"].addWidget(pages["pkgBook"])
+        pages["split"].addWidget(pages["actions"])
+
         layout = QtWidgets.QHBoxLayout(self)
-        layout.addWidget(pages["pkgBook"])
-        layout.addWidget(pages["actions"])
+        layout.addWidget(pages["split"])
 
         # setup
         pages["pkgBook"].set_model(ctrl.models["pkgBook"])

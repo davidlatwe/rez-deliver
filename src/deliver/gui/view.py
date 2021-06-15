@@ -255,6 +255,9 @@ class InstallerView(QtWidgets.QWidget):
             "install": QtWidgets.QPushButton("Install"),
         }
 
+        widgets["targets"].setMinimumWidth(50)
+        widgets["targets"].view().setTextElideMode(QtCore.Qt.ElideLeft)
+
         layout = QtWidgets.QVBoxLayout(self)
         layout.addWidget(widgets["targets"])
         layout.addWidget(widgets["manifest"])
