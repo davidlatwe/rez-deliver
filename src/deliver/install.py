@@ -7,7 +7,7 @@ import subprocess
 from rez.config import config as rezconfig
 
 from deliver.solve import RequestSolver
-from deliver.lib import clear_repo_cache
+from deliver.lib import clear_repo_cache, temp_env
 
 
 class PackageInstaller(RequestSolver):
@@ -31,7 +31,8 @@ class PackageInstaller(RequestSolver):
             else:
                 self._build(requested.name,
                             os.path.dirname(requested.source),
-                            variant=requested.index)
+                            variant=requested.index,
+                            ver_tag=requested.ver_tag)
 
             deliverconfig.on_package_deployed_callback(
                 name=requested.name,
@@ -50,7 +51,7 @@ class PackageInstaller(RequestSolver):
 
         clear_repo_cache(deploy_path)
 
-    def _build(self, name, src_dir, variant=None):
+    def _build(self, name, src_dir, variant=None, ver_tag=None):
         variant_cmd = [] if variant is None else ["--variants", str(variant)]
         deploy_path = self.deploy_path
 
@@ -70,6 +71,9 @@ class PackageInstaller(RequestSolver):
             env["REZ_LOCAL_PACKAGES_PATH"] = deploy_path
             cmd += ["--install"]
 
+        if ver_tag:
+            env["__DELIVER_PKG_PAYLOAD_VER"] = ver_tag
+
         cmd += variant_cmd
         self._run_command(cmd, cwd=src_dir, env=env)
 
@@ -84,6 +88,8 @@ def main():
     from rez.cli._main import run
     from deliver.solve import RequestSolver
     from deliver.lib import override_config
+
+    ver_tag = os.getenv("__DELIVER_PKG_PAYLOAD_VER")
 
     parser = argparse.ArgumentParser("deliver.install")
     parser.add_argument("PKG")
@@ -107,7 +113,9 @@ def main():
         # developer packages loader paths appended, see comment above.
         "packages_path": solver.installed_packages_path + solver.loader.paths,
     }
-    with override_config(settings):
+    with override_config(settings), \
+            temp_env("REZ_DELIVER_PKG_PAYLOAD_VER", ver_tag):
+
         command = "release" if opts.release else "build"
         sys.argv = ["rez-" + command] + remains
         run(command)

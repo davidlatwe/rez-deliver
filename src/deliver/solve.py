@@ -25,7 +25,7 @@ from deliver.lib import os_chdir, override_config, expand_path, temp_env
 
 
 class Required(object):
-    __slots__ = ("name", "index", "source", "status", "depended")
+    __slots__ = ("name", "index", "source", "status", "depended", "ver_tag")
 
     def __init__(self, name, index):
         self.name = name
@@ -33,6 +33,7 @@ class Required(object):
         self.source = None
         self.status = None
         self.depended = []
+        self.ver_tag = None  # from remote git repo, for PackageInstaller
 
     @classmethod
     def get(cls, name, index=-1, from_=None):
@@ -358,6 +359,7 @@ class RequestSolver(object):
             requested = Required.get(name, variant.index)
             requested.source = source
             requested.status = status
+            requested.ver_tag = variant.parent.data.get("__ver_tag__")
 
             if self.__depended:
                 requested.depended.append(self.__depended)
