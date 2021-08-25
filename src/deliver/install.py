@@ -66,7 +66,7 @@ class PackageInstaller(RequestSolver):
 
         if self._release:
             env["REZ_RELEASE_PACKAGES_PATH"] = deploy_path
-            cmd += ["--release"]
+            cmd += ["--release", "--no-latest"]
         else:
             env["REZ_LOCAL_PACKAGES_PATH"] = deploy_path
             cmd += ["--install"]
