@@ -84,6 +84,7 @@ def pkg_rez(release, *_args, **_kwargs):
             variants.append(variant)
 
         def install_rez_via_pip(repo_path, variant_index, *_args, **_kwargs):
+            py_version = pythons[variant_index]
             requires = variants[variant_index]
             context = ResolvedContext(requires, building=True)
 
@@ -99,7 +100,8 @@ def pkg_rez(release, *_args, **_kwargs):
                          "-p", repo_path,
                          "--args",
                          "rez" + pip_version,
-                         gui_version],
+                         gui_version,
+                         py_version],
                 block=True,
             )
 
@@ -112,7 +114,7 @@ def pkg_rez(release, *_args, **_kwargs):
             build_rez_via_pip(repo_path,
                               "rez" + pip_version,
                               gui_version,
-                              python_variants=False)
+                              python_version=None)
 
     maker = PackageMaker("rez")
     maker.version = gui_version
@@ -122,7 +124,7 @@ def pkg_rez(release, *_args, **_kwargs):
     return maker
 
 
-def build_rez_via_pip(repo_path, rez_url, rez_version, python_variants=True):
+def build_rez_via_pip(repo_path, rez_url, rez_version, python_version=None):
     # pip install rez to temp
     tmpdir = mkdtemp(prefix="rez-install-")
     python_exec = which("python")
@@ -142,8 +144,8 @@ def build_rez_via_pip(repo_path, rez_url, rez_version, python_variants=True):
                             os.path.join(root, lib))
 
     variant = system.variant[:]
-    if python_variants:
-        variant.append("python-{0.major}.{0.minor}".format(sys.version_info))
+    if python_version:
+        variant.append("python-%s" % python_version)
     variants = [variant]
 
     with make_package("rez", repo_path, make_root=make_root) as pkg:
