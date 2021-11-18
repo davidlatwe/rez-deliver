@@ -350,6 +350,21 @@ class TestManifest(TestBase):
         manifest = self.installer.manifest()
         self.assertEqual(2, len(manifest))
 
+    def test_variants_installed_separately(self):
+        self.dev_repo.add("foo", version="1", build_command=False)
+        self.dev_repo.add("foo", version="2", build_command=False)
+        self.dev_repo.add("bar", version="5", build_command=False,
+                          variants=[["foo-1"], ["foo-2"]])
+
+        self.installer.resolve("foo-1", "foo-2", "bar[0]")
+        self._run_install()
+
+        self.installer.resolve("bar")
+        manifest = self.installer.manifest()
+
+        self.assertEqual("bar-5", manifest[-1].name)
+        self.assertEqual(self.installer.Ready, manifest[-1].status)
+
 
 if __name__ == "__main__":
     unittest.main()
