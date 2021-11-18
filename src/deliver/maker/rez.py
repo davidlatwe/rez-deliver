@@ -86,21 +86,21 @@ def pkg_rez(release, *_args, **_kwargs):
 
         def install_rez_via_pip(repo_path, variant_index, *_args, **_kwargs):
             requires = variants[variant_index]
-            parent_env = os.environ.copy()
-            parent_env["PYTHONPATH"] = os.pathsep.join(
-                [os.path.dirname(rez.__path__[0])]
-                + [os.path.dirname(deliver.__path__[0])]
-                + parent_env.get("PYTHONPATH", "").split(os.pathsep))
-
             context = ResolvedContext(requires, building=True)
+
+            _exec = context.which("_deliver_mk")
+            if not _exec:
+                raise Exception("Could not found executable '_deliver_mk' "
+                                "within package building context, possible "
+                                "not a production install ?")
+
             context.execute_shell(
-                command=["python", "-m", "deliver.maker",
+                command=[_exec,
                          "-n", "rez",
                          "-p", repo_path,
                          "--args",
                          "rez" + pip_version,
                          gui_version],
-                parent_environ=parent_env,
                 block=True,
             )
 
