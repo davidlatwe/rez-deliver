@@ -6,8 +6,7 @@ import shutil
 import subprocess
 from tempfile import mkdtemp
 
-import deliver
-import rez
+from rez.util import which
 from rez.system import system
 from rez.utils.lint_helper import env
 from rez.packages import iter_packages
@@ -126,8 +125,12 @@ def pkg_rez(release, *_args, **_kwargs):
 def build_rez_via_pip(repo_path, rez_url, rez_version, python_variants=True):
     # pip install rez to temp
     tmpdir = mkdtemp(prefix="rez-install-")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", rez_url,
-                           "--target", tmpdir])
+    python_exec = which("python")
+
+    subprocess.check_call(
+        [python_exec, "-m", "pip", "install", rez_url, "--target", tmpdir],
+        stderr=subprocess.STDOUT,
+    )
 
     # make package
     def commands():
