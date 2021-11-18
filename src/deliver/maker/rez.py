@@ -6,8 +6,7 @@ import shutil
 import subprocess
 from tempfile import mkdtemp
 
-import deliver
-import rez
+from rez.util import which
 from rez.system import system
 from rez.utils.lint_helper import env
 from rez.packages import iter_packages
@@ -85,22 +84,24 @@ def pkg_rez(release, *_args, **_kwargs):
             variants.append(variant)
 
         def install_rez_via_pip(repo_path, variant_index, *_args, **_kwargs):
+            py_version = pythons[variant_index]
             requires = variants[variant_index]
-            parent_env = os.environ.copy()
-            parent_env["PYTHONPATH"] = os.pathsep.join(
-                [os.path.dirname(rez.__path__[0])]
-                + [os.path.dirname(deliver.__path__[0])]
-                + parent_env.get("PYTHONPATH", "").split(os.pathsep))
-
             context = ResolvedContext(requires, building=True)
+
+            _exec = context.which("_deliver_mk")
+            if not _exec:
+                raise Exception("Could not found executable '_deliver_mk' "
+                                "within package building context, possible "
+                                "not a production install ?")
+
             context.execute_shell(
-                command=["python", "-m", "deliver.maker",
+                command=[_exec,
                          "-n", "rez",
                          "-p", repo_path,
                          "--args",
                          "rez" + pip_version,
-                         gui_version],
-                parent_environ=parent_env,
+                         gui_version,
+                         py_version],
                 block=True,
             )
 
@@ -113,7 +114,7 @@ def pkg_rez(release, *_args, **_kwargs):
             build_rez_via_pip(repo_path,
                               "rez" + pip_version,
                               gui_version,
-                              python_variants=False)
+                              python_version=None)
 
     maker = PackageMaker("rez")
     maker.version = gui_version
@@ -123,11 +124,15 @@ def pkg_rez(release, *_args, **_kwargs):
     return maker
 
 
-def build_rez_via_pip(repo_path, rez_url, rez_version, python_variants=True):
+def build_rez_via_pip(repo_path, rez_url, rez_version, python_version=None):
     # pip install rez to temp
     tmpdir = mkdtemp(prefix="rez-install-")
-    subprocess.check_call([sys.executable, "-m", "pip", "install", rez_url,
-                           "--target", tmpdir])
+    python_exec = which("python")
+
+    subprocess.check_call(
+        [python_exec, "-m", "pip", "install", rez_url, "--target", tmpdir],
+        stderr=subprocess.STDOUT,
+    )
 
     # make package
     def commands():
@@ -139,8 +144,8 @@ def build_rez_via_pip(repo_path, rez_url, rez_version, python_variants=True):
                             os.path.join(root, lib))
 
     variant = system.variant[:]
-    if python_variants:
-        variant.append("python-{0.major}.{0.minor}".format(sys.version_info))
+    if python_version:
+        variant.append("python-%s" % python_version)
     variants = [variant]
 
     with make_package("rez", repo_path, make_root=make_root) as pkg:
