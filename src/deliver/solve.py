@@ -353,13 +353,13 @@ class RequestSolver(object):
             if variant_index is not None and variant_index != variant.index:
                 continue
 
-            if status == self.Ready and i_van is not None:
-                status = self.Installed
-
             requested = Required.get(name, variant.index)
             requested.source = source
             requested.status = status
             requested.ver_tag = variant.parent.data.get("__ver_tag__")
+
+            if status == self.Ready and i_van is not None:
+                requested.status = self.Installed
 
             if self.__depended:
                 requested.depended.append(self.__depended)
