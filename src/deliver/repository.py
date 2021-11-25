@@ -81,17 +81,10 @@ class PackageLoader(object):
         self.__initialized = True
         # init
         #
-        deliverconfig = rezconfig.plugins.command.deliver
-        maker_repo = MakePkgRepo(loader=self)
-        dev_repos = [
-            DevPkgRepo(root=expand_path(root), loader=self)
-            for root in deliverconfig.dev_repository_roots
-        ]
-        dev_repos += [maker_repo]
-
         self.release = False
-        self._dev_repos = dev_repos
-        self._maker_repo = maker_repo
+        self._dev_repos = None
+        self._maker_repo = None
+        self.reload_repos()
 
     @property
     def settings(self):
@@ -114,6 +107,18 @@ class PackageLoader(object):
     @property
     def paths(self):
         return [repo.mem_uid for repo in self._dev_repos]
+
+    def reload_repos(self):
+        deliverconfig = rezconfig.plugins.command.deliver
+        maker_repo = MakePkgRepo(loader=self)
+        dev_repos = [
+            DevPkgRepo(root=expand_path(root), loader=self)
+            for root in deliverconfig.dev_repository_roots
+        ]
+        dev_repos += [maker_repo]
+
+        self._dev_repos = dev_repos
+        self._maker_repo = maker_repo
 
     def get_maker_made_package(self, name):
         paths = [self._maker_repo.mem_uid]
