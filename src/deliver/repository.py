@@ -5,7 +5,6 @@ import subprocess
 from functools import wraps
 
 from rez.config import config as rezconfig
-from rez.utils.formatting import PackageRequest
 from rez.developer_package import DeveloperPackage
 from rez.utils.logging_ import logger as rez_logger
 from rez.vendor.version.version import Version, VersionError
