@@ -203,10 +203,11 @@ class Repo(object):
     #   developer packages.
     #
     def __getitem__(self, name):
-        return {
-            version: data for version, data
-            in self.get_dev_package_versions(name)
-        }
+        with override_config({"allow_unversioned_packages": True}):
+            return {
+                version: data for version, data
+                in self.get_dev_package_versions(name)
+            }
 
     def __contains__(self, pkg):
         if isinstance(pkg, str):
