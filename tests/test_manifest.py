@@ -7,7 +7,7 @@ import unittest
 from unittest.mock import patch
 from deliver.api import PackageLoader, PackageInstaller
 from deliver.repository import DevPkgRepo
-from deliver.lib import temp_env
+from deliver.lib import temp_env, override_config
 from tests.util import TestBase, require_directives
 from tests.ghostwriter import DeveloperRepository, early, late, building
 
@@ -363,6 +363,22 @@ class TestManifest(TestBase):
         manifest = self.installer.manifest()
 
         self.assertEqual("bar-5", manifest[-1].name)
+        self.assertEqual(self.installer.Ready, manifest[-1].status)
+
+    def test_requiring_unversioned_dev_package(self):
+        # foo is unversioned
+        self.dev_repo.add("foo", build_command=False)
+        self.dev_repo.add("bar", build_command=False,
+                          version="1", requires=["foo"])
+
+        # manifesting dev pkgs under env that forbids unversioned package
+        with override_config({"allow_unversioned_packages": False}):
+            self.installer.resolve("bar")
+            manifest = self.installer.manifest()
+
+        # despite production env forbids unversioned package, but the dev
+        # package repo should not be limited
+        self.assertEqual("bar-1", manifest[-1].name)
         self.assertEqual(self.installer.Ready, manifest[-1].status)
 
 
