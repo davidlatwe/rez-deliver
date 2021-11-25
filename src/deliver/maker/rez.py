@@ -1,7 +1,6 @@
 from __future__ import absolute_import
 import re
 import os
-import sys
 import shutil
 import subprocess
 from tempfile import mkdtemp
@@ -17,23 +16,32 @@ from rez.vendor.version.version import Version, VersionError
 
 
 def fetch_rez_version_from_pypi():
-    import requests
-
-    history_url = "https://pypi.org/project/rez/#history"
     try:
-        response = requests.get(url=history_url, timeout=1)
-    except (requests.exceptions.Timeout, requests.exceptions.ProxyError):
+        from urllib.request import urlopen  # noqa, py3
+    except ImportError:
+        from urllib import urlopen  # noqa, py2
+
+    name = "rez"
+
+    _pypi_url = "https://pypi.python.org/simple/{}".format(name)
+    _regex_version = re.compile(".*{}-(.*)\\.tar\\.gz".format(name))
+
+    f = urlopen(_pypi_url)
+    text = f.read().decode("utf-8")
+    f.close()
+
+    latest_str = ""
+    for line in text.split():
+        result = _regex_version.search(line)
+        if result:
+            latest_str = result.group(1)
+
+    try:
+        Version(latest_str)
+    except VersionError:
         pass
     else:
-        matched = _regex_pypi_rez_ver.match(response.text)
-        if matched and matched.groups():
-            version_str = matched.groups()[0]
-            try:
-                Version(version_str)
-            except VersionError:
-                pass
-            else:
-                return version_str
+        return latest_str
 
     print("Failed to parse latest rez version from PyPi..")
 
